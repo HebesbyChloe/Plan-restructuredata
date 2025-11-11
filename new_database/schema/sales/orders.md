@@ -1,142 +1,313 @@
 # Order Management Department
 
 ## Overview
-This document shows the complete Order Management schema structure with data types, foreign keys, and change indicators.
+This document shows a clean, normalized Order Management schema following database best practices.
+
+**Design Principles:**
+- **Separation of Concerns**: Shipping, payment, feedback, and metadata are in separate tables
+- **Normalization**: Tags, images, and follow-ups are normalized
+- **Data Integrity**: Proper foreign keys, constraints, and data types
+- **Audit Trail**: Created/updated timestamps and staff tracking
+- **Performance**: Strategic indexes on frequently queried fields
 
 **Legend:**
-- 🆕 **NEW** - Newly created tables
-- 🔄 **NORMALIZED** - Comma-separated values moved to junction tables
-- 🗑️ **REMOVED** - Fields/tables removed or consolidated
-- ✏️ **RENAMED** - Table/column renamed
-- 📊 **DENORMALIZED** - Denormalized for performance (if any)
+- 🆕 **NEW** - Newly created tables/fields
+- 🔄 **NORMALIZED** - Moved from denormalized structure
+- ✏️ **RENAMED** - Field/table renamed for clarity
+- 📊 **DENORMALIZED** - Intentionally denormalized for performance
 
 ---
 
 ## Core Tables
 
 #### `order` ✏️ (renamed from `db_order`)
-**Status**: Core entity, PostgreSQL reserved word (use quotes)
+**Status**: Core entity - contains only essential order information
 
 | Column | Data Type | Constraints | Notes |
 |--------|-----------|-------------|-------|
 | `id` | BIGSERIAL | PRIMARY KEY | |
-| `parent_id` | BIGINT | FK → `order.id` | Self-referencing |
-| `order_number` | VARCHAR(300) | NOT NULL DEFAULT '' | ✏️ Renamed from `link_order_number` |
-| `store` | VARCHAR(200) | DEFAULT '' | |
-| `status` | VARCHAR(100) | NOT NULL | Indexed |
-| `customer_name` | VARCHAR(200) | NOT NULL DEFAULT 'No Name' | |
-| `email` | VARCHAR(300) | NOT NULL | Indexed |
-| `closed_by_staff_id` | BIGINT | FK → `staff.id` | ✏️ Renamed from `id_nv_chotdon` |
-| `referred_by_staff_id` | BIGINT | FK → `staff.id` | ✏️ Renamed from `id_nv_gioithieu` |
-| `support_by_staff_id` | BIGINT | FK → `staff.id` | ✏️ Renamed from `support_by` |
-| `payment_method` | VARCHAR(100) | NOT NULL | |
-| `total` | NUMERIC(12,2) | NOT NULL, CHECK >= 0 | 🔄 Changed from `float` |
-| `net_payment` | NUMERIC(12,2) | DEFAULT 0 | 🔄 Changed from `float` |
-| `total_refunded` | NUMERIC(12,2) | DEFAULT 0 | 🔄 Changed from `float` |
-| `is_local_store` | BOOLEAN | DEFAULT FALSE | ✏️ Renamed from `local_store` |
-| `is_live_stream` | BOOLEAN | NOT NULL DEFAULT FALSE | ✏️ Renamed from `live_stream` |
-| `is_pre_order` | BOOLEAN | DEFAULT FALSE | ✏️ Renamed from `pre_order` |
-| `created_at` | TIMESTAMP WITH TIME ZONE | DEFAULT NULL | ✏️ Renamed from `date_created` |
-| `updated_at` | TIMESTAMP WITH TIME ZONE | DEFAULT CURRENT_TIMESTAMP | ✏️ Renamed from `updated_at` |
+| `order_number` | VARCHAR(100) | UNIQUE, NOT NULL | External order number |
+| `parent_order_id` | BIGINT | FK → `order.id` | Self-referencing for order groups |
+| `customer_id` | BIGINT | FK → `customer.id` | 🆕 Link to customer table |
+| `store` | VARCHAR(50) | NOT NULL | Store identifier |
+| `status` | VARCHAR(50) | NOT NULL | Order status (pending, processing, shipped, delivered, cancelled, refunded) |
+| `order_type` | VARCHAR(50) | DEFAULT 'standard' | standard, pre_order, diamond, custom |
+| `source` | VARCHAR(100) | DEFAULT 'phone' | Order source (phone, live_stream, ritamie, etc.) |
+| `total_amount` | NUMERIC(12,2) | NOT NULL, CHECK >= 0 | Total order value |
+| `net_payment` | NUMERIC(12,2) | DEFAULT 0, CHECK >= 0 | Net amount after discounts |
+| `total_refunded` | NUMERIC(12,2) | DEFAULT 0, CHECK >= 0 | Total refunded amount |
+| `approval_status` | VARCHAR(50) | DEFAULT 'pending' | approval workflow status |
+| `has_error` | BOOLEAN | DEFAULT FALSE | ✏️ Renamed from `error_order` |
+| `is_claim` | BOOLEAN | DEFAULT FALSE | ✏️ Renamed from `claim_order` |
+| `closed_by_staff_id` | BIGINT | FK → `staff.id` | Staff who closed the order |
+| `referred_by_staff_id` | BIGINT | FK → `staff.id` | Staff who referred the customer |
+| `support_by_staff_id` | BIGINT | FK → `staff.id` | Staff providing support |
+| `created_at` | TIMESTAMP WITH TIME ZONE | DEFAULT CURRENT_TIMESTAMP | |
+| `updated_at` | TIMESTAMP WITH TIME ZONE | DEFAULT CURRENT_TIMESTAMP | Auto-update trigger |
+| `created_by_id` | BIGINT | FK → `staff.id` | 🆕 Audit field |
+| `updated_by_id` | BIGINT | FK → `staff.id` | 🆕 Audit field |
 
 **Foreign Keys:**
-- `parent_id` → `order(id)`
+- `parent_order_id` → `order(id)` ON DELETE SET NULL
+- `customer_id` → `customer(id)`
 - `closed_by_staff_id` → `staff(id)`
 - `referred_by_staff_id` → `staff(id)`
 - `support_by_staff_id` → `staff(id)`
+- `created_by_id` → `staff(id)`
+- `updated_by_id` → `staff(id)`
 
 **Indexes:**
-- `idx_order_parent_id`
-- `idx_order_closed_by_staff`
-- `idx_order_referred_by_staff`
-- `idx_order_support_by_staff`
-- `idx_order_status`
-- `idx_order_created_at`
-- `idx_order_email`
-- `idx_order_customer_name`
-- `idx_order_store`
+- `idx_order_order_number` - UNIQUE on `order_number`
+- `idx_order_customer_id` - On `customer_id`
+- `idx_order_status` - On `status`
+- `idx_order_store` - On `store`
+- `idx_order_created_at` - On `created_at`
+- `idx_order_parent_order_id` - On `parent_order_id`
+- `idx_order_order_type` - On `order_type`
+- `idx_order_source` - On `source`
 
 ---
 
-#### `order_detail` ✏️ (renamed from `db_order_detail`)
-**Status**: One-to-one with order
+#### `order_shipping` 🆕 NEW
+**Status**: Shipping information separated from main order table
 
 | Column | Data Type | Constraints | Notes |
 |--------|-----------|-------------|-------|
 | `id` | BIGSERIAL | PRIMARY KEY | |
-| `order_id` | BIGINT | FK → `order.id`, NOT NULL | 🆕 New FK |
-| `status` | VARCHAR(20) | NOT NULL DEFAULT '' | |
-| `total` | NUMERIC(12,2) | NOT NULL DEFAULT 0 | 🔄 Changed from `float` |
-| `transaction_id` | VARCHAR(300) | NOT NULL | |
-| `items_paid` | TEXT | NOT NULL | 🔄 Changed from `varchar(4500)` |
-| `created_at` | TIMESTAMP WITH TIME ZONE | DEFAULT CURRENT_TIMESTAMP | ✏️ Renamed from `date_created` |
+| `order_id` | BIGINT | FK → `order.id`, NOT NULL, UNIQUE | One-to-one with order |
+| `tracking_number` | VARCHAR(100) | DEFAULT '' | |
+| `carrier` | VARCHAR(50) | DEFAULT '' | Shipping carrier name |
+| `carrier_status` | VARCHAR(50) | DEFAULT '' | ✏️ Renamed from `ship_carrier_status` |
+| `ship_date` | TIMESTAMP WITH TIME ZONE | DEFAULT NULL | |
+| `delivered_date` | TIMESTAMP WITH TIME ZONE | DEFAULT NULL | |
+| `estimated_delivery_date` | TIMESTAMP WITH TIME ZONE | DEFAULT NULL | |
+| `batch_ship_id` | BIGINT | FK → `shipment_batch.id` | 🆕 Link to shipment batch |
+| `created_at` | TIMESTAMP WITH TIME ZONE | DEFAULT CURRENT_TIMESTAMP | |
+| `updated_at` | TIMESTAMP WITH TIME ZONE | DEFAULT CURRENT_TIMESTAMP | Auto-update trigger |
 
 **Foreign Keys:**
-- `order_id` → `order(id)`
+- `order_id` → `order(id)` ON DELETE CASCADE
+- `batch_ship_id` → `shipment_batch(id)` ON DELETE SET NULL
+
+**Indexes:**
+- `idx_order_shipping_order_id` - UNIQUE on `order_id`
+- `idx_order_shipping_tracking` - On `tracking_number`
+- `idx_order_shipping_carrier` - On `carrier`
+- `idx_order_shipping_ship_date` - On `ship_date`
+
+---
+
+#### `order_payment` 🆕 NEW
+**Status**: Payment information separated from main order table
+
+| Column | Data Type | Constraints | Notes |
+|--------|-----------|-------------|-------|
+| `id` | BIGSERIAL | PRIMARY KEY | |
+| `order_id` | BIGINT | FK → `order.id`, NOT NULL | One order can have multiple payments |
+| `payment_method` | VARCHAR(100) | NOT NULL | |
+| `amount` | NUMERIC(12,2) | NOT NULL, CHECK > 0 | Payment amount |
+| `status` | VARCHAR(50) | NOT NULL DEFAULT 'pending' | pending, paid, failed, refunded |
+| `transaction_id` | VARCHAR(300) | DEFAULT '' | External transaction ID |
+| `due_date` | TIMESTAMP WITH TIME ZONE | DEFAULT NULL | |
+| `paid_date` | TIMESTAMP WITH TIME ZONE | DEFAULT NULL | |
+| `is_deposit` | BOOLEAN | DEFAULT FALSE | ✏️ Renamed from `deposit` |
+| `created_at` | TIMESTAMP WITH TIME ZONE | DEFAULT CURRENT_TIMESTAMP | |
+| `updated_at` | TIMESTAMP WITH TIME ZONE | DEFAULT CURRENT_TIMESTAMP | Auto-update trigger |
+
+**Foreign Keys:**
+- `order_id` → `order(id)` ON DELETE CASCADE
+
+**Indexes:**
+- `idx_order_payment_order_id` - On `order_id`
+- `idx_order_payment_status` - On `status`
+- `idx_order_payment_transaction_id` - On `transaction_id`
+- `idx_order_payment_paid_date` - On `paid_date`
 
 ---
 
 #### `order_line_item` ✏️ (renamed from `db_order_line_item`)
-**Status**: Order items
+**Status**: Order line items - normalized product information
 
 | Column | Data Type | Constraints | Notes |
 |--------|-----------|-------------|-------|
 | `id` | BIGSERIAL | PRIMARY KEY | |
-| `order_id` | BIGINT | FK → `order.id`, NOT NULL | 🆕 New FK |
-| `product_sku` | VARCHAR(50) | NOT NULL | ✏️ Renamed from `sku` |
-| `price` | NUMERIC(12,2) | NOT NULL DEFAULT 0 | 🔄 Changed from `float` |
-| `quantity` | INTEGER | NOT NULL DEFAULT 0, CHECK > 0 | ✏️ Renamed from `qty` |
-| `created_at` | TIMESTAMP WITH TIME ZONE | NOT NULL DEFAULT CURRENT_TIMESTAMP | ✏️ Renamed from `date_created` |
+| `order_id` | BIGINT | FK → `order.id`, NOT NULL | |
+| `line_number` | INTEGER | NOT NULL | Sequential line number in order |
+| `product_sku` | VARCHAR(100) | NOT NULL | Soft FK to `product.sku` |
+| `product_name` | VARCHAR(500) | NOT NULL | Snapshot of product name at order time |
+| `quantity` | INTEGER | NOT NULL, CHECK > 0 | |
+| `unit_price` | NUMERIC(12,2) | NOT NULL, CHECK >= 0 | Price per unit at order time |
+| `line_total` | NUMERIC(12,2) | NOT NULL, CHECK >= 0 | Calculated: quantity * unit_price |
+| `status` | VARCHAR(50) | DEFAULT 'pending' | pending, fulfilled, cancelled, refunded |
+| `created_at` | TIMESTAMP WITH TIME ZONE | DEFAULT CURRENT_TIMESTAMP | |
 
 **Foreign Keys:**
-- `order_id` → `order(id)`
-- Note: `product_sku` is soft FK to `product.sku` (string match)
+- `order_id` → `order(id)` ON DELETE CASCADE
 
 **Indexes:**
-- `idx_order_line_item_order`
-- `idx_order_line_item_product_sku`
+- `idx_order_line_item_order_id` - On `order_id`
+- `idx_order_line_item_product_sku` - On `product_sku`
+- `idx_order_line_item_status` - On `status`
 
 ---
 
-#### `payment` ✏️ (renamed from `db_payment_order`)
-**Status**: Order payments
+#### `order_feedback` 🆕 NEW
+**Status**: Customer feedback and reviews separated
 
 | Column | Data Type | Constraints | Notes |
 |--------|-----------|-------------|-------|
 | `id` | BIGSERIAL | PRIMARY KEY | |
-| `order_id` | BIGINT | FK → `order.id`, NOT NULL | ✏️ Renamed from `parent_id` |
-| `status` | VARCHAR(100) | NOT NULL DEFAULT '' | |
-| `amount` | NUMERIC(12,2) | DEFAULT 0, CHECK >= 0 | 🔄 Changed from `float` |
-| `payment_method` | VARCHAR(256) | DEFAULT '' | |
-| `due_date` | TIMESTAMP WITH TIME ZONE | DEFAULT NULL | |
-| `paid_date` | TIMESTAMP WITH TIME ZONE | DEFAULT NULL | |
-| `created_at` | TIMESTAMP WITH TIME ZONE | DEFAULT CURRENT_TIMESTAMP | ✏️ Renamed from `date_created` |
+| `order_id` | BIGINT | FK → `order.id`, NOT NULL, UNIQUE | One-to-one with order |
+| `customer_feedback` | TEXT | DEFAULT '' | |
+| `social_review` | VARCHAR(200) | DEFAULT '' | Social media review link |
+| `rating` | INTEGER | CHECK (rating >= 1 AND rating <= 5) | 🆕 1-5 star rating |
+| `created_at` | TIMESTAMP WITH TIME ZONE | DEFAULT CURRENT_TIMESTAMP | |
+| `updated_at` | TIMESTAMP WITH TIME ZONE | DEFAULT CURRENT_TIMESTAMP | Auto-update trigger |
 
 **Foreign Keys:**
-- `order_id` → `order(id)`
+- `order_id` → `order(id)` ON DELETE CASCADE
 
 **Indexes:**
-- `idx_payment_order`
-- `idx_payment_status`
-- `idx_payment_method`
+- `idx_order_feedback_order_id` - UNIQUE on `order_id`
+- `idx_order_feedback_rating` - On `rating`
+
+---
+
+#### `order_feedback_image` 🆕 NEW
+**Status**: Images associated with order feedback
+
+| Column | Data Type | Constraints | Notes |
+|--------|-----------|-------------|-------|
+| `id` | BIGSERIAL | PRIMARY KEY | |
+| `order_feedback_id` | BIGINT | FK → `order_feedback.id`, NOT NULL | |
+| `image_url` | VARCHAR(1000) | NOT NULL | |
+| `display_order` | INTEGER | DEFAULT 0 | For ordering multiple images |
+| `created_at` | TIMESTAMP WITH TIME ZONE | DEFAULT CURRENT_TIMESTAMP | |
+
+**Foreign Keys:**
+- `order_feedback_id` → `order_feedback(id)` ON DELETE CASCADE
+
+**Indexes:**
+- `idx_order_feedback_image_feedback_id` - On `order_feedback_id`
+
+---
+
+#### `order_note` 🆕 NEW
+**Status**: General notes and follow-up information
+
+| Column | Data Type | Constraints | Notes |
+|--------|-----------|-------------|-------|
+| `id` | BIGSERIAL | PRIMARY KEY | |
+| `order_id` | BIGINT | FK → `order.id`, NOT NULL | One order can have multiple notes |
+| `note_type` | VARCHAR(50) | DEFAULT 'general' | general, follow_up, internal, customer |
+| `content` | TEXT | NOT NULL | |
+| `follow_up_status` | VARCHAR(50) | DEFAULT '' | ✏️ Renamed from `status_follow_up` |
+| `created_by_id` | BIGINT | FK → `staff.id` | 🆕 Staff who created the note |
+| `created_at` | TIMESTAMP WITH TIME ZONE | DEFAULT CURRENT_TIMESTAMP | |
+| `updated_at` | TIMESTAMP WITH TIME ZONE | DEFAULT CURRENT_TIMESTAMP | Auto-update trigger |
+
+**Foreign Keys:**
+- `order_id` → `order(id)` ON DELETE CASCADE
+- `created_by_id` → `staff(id)`
+
+**Indexes:**
+- `idx_order_note_order_id` - On `order_id`
+- `idx_order_note_type` - On `note_type`
+- `idx_order_note_created_at` - On `created_at`
+
+---
+
+#### `order_tag` 🆕 NEW
+**Status**: Normalized tags for orders
+
+| Column | Data Type | Constraints | Notes |
+|--------|-----------|-------------|-------|
+| `id` | BIGSERIAL | PRIMARY KEY | |
+| `order_id` | BIGINT | FK → `order.id`, NOT NULL | |
+| `tag` | VARCHAR(150) | NOT NULL | |
+| `created_at` | TIMESTAMP WITH TIME ZONE | DEFAULT CURRENT_TIMESTAMP | |
+| UNIQUE(`order_id`, `tag`) | | | Prevent duplicate tags |
+
+**Foreign Keys:**
+- `order_id` → `order(id)` ON DELETE CASCADE
+
+**Indexes:**
+- `idx_order_tag_order_id` - On `order_id`
+- `idx_order_tag_tag` - On `tag`
+- `idx_order_tag_unique` - UNIQUE on (`order_id`, `tag`)
+
+---
+
+#### `order_image` 🆕 NEW
+**Status**: Order images separated from main table
+
+| Column | Data Type | Constraints | Notes |
+|--------|-----------|-------------|-------|
+| `id` | BIGSERIAL | PRIMARY KEY | |
+| `order_id` | BIGINT | FK → `order.id`, NOT NULL | |
+| `image_url` | VARCHAR(1000) | NOT NULL | |
+| `image_type` | VARCHAR(50) | DEFAULT 'order' | order, receipt, custom, other |
+| `display_order` | INTEGER | DEFAULT 0 | For ordering multiple images |
+| `created_at` | TIMESTAMP WITH TIME ZONE | DEFAULT CURRENT_TIMESTAMP | |
+
+**Foreign Keys:**
+- `order_id` → `order(id)` ON DELETE CASCADE
+
+**Indexes:**
+- `idx_order_image_order_id` - On `order_id`
+- `idx_order_image_type` - On `image_type`
+
+---
+
+#### `order_after_service` 🆕 NEW
+**Status**: After-sales service tracking
+
+| Column | Data Type | Constraints | Notes |
+|--------|-----------|-------------|-------|
+| `id` | BIGSERIAL | PRIMARY KEY | |
+| `order_id` | BIGINT | FK → `order.id`, NOT NULL, UNIQUE | One-to-one with order |
+| `service_type` | VARCHAR(100) | DEFAULT '' | Type of after-service |
+| `status` | VARCHAR(50) | DEFAULT 'pending' | pending, in_progress, completed, cancelled |
+| `notes` | TEXT | DEFAULT '' | Service notes |
+| `created_at` | TIMESTAMP WITH TIME ZONE | DEFAULT CURRENT_TIMESTAMP | |
+| `updated_at` | TIMESTAMP WITH TIME ZONE | DEFAULT CURRENT_TIMESTAMP | Auto-update trigger |
+
+**Foreign Keys:**
+- `order_id` → `order(id)` ON DELETE CASCADE
+
+**Indexes:**
+- `idx_order_after_service_order_id` - UNIQUE on `order_id`
+- `idx_order_after_service_status` - On `status`
 
 ---
 
 ## Returns & Refunds
 
 #### `order_return` ✏️ (renamed from `db_order_return`)
-**Status**: Returns management
+**Status**: Order returns management
 
 | Column | Data Type | Constraints | Notes |
 |--------|-----------|-------------|-------|
-| `id` | BIGSERIAL | PRIMARY KEY | ✏️ Changed from `id_order` |
-| `original_order_id` | BIGINT | DEFAULT 0 | ✏️ Renamed from `id_old_order` |
-| `total` | NUMERIC(12,2) | DEFAULT NULL | 🔄 Changed from `float` |
-| `updated_by_id` | BIGINT | FK → `staff.id`, DEFAULT 0 | ✏️ Renamed from `updated_by` |
-| `created_at` | TIMESTAMP WITH TIME ZONE | NOT NULL DEFAULT CURRENT_TIMESTAMP | ✏️ Renamed from `date_created_inquiry` |
+| `id` | BIGSERIAL | PRIMARY KEY | |
+| `order_id` | BIGINT | FK → `order.id`, NOT NULL | |
+| `return_number` | VARCHAR(100) | UNIQUE, NOT NULL | 🆕 RMA number |
+| `return_reason` | VARCHAR(256) | DEFAULT '' | |
+| `return_status` | VARCHAR(50) | DEFAULT 'pending' | pending, approved, rejected, completed |
+| `total_amount` | NUMERIC(12,2) | DEFAULT NULL | |
+| `tracking_number` | VARCHAR(100) | DEFAULT '' | Return shipment tracking |
+| `received_date` | DATE | DEFAULT NULL | Date return was received |
+| `processed_by_id` | BIGINT | FK → `staff.id` | Staff who processed the return |
+| `created_at` | TIMESTAMP WITH TIME ZONE | DEFAULT CURRENT_TIMESTAMP | |
+| `updated_at` | TIMESTAMP WITH TIME ZONE | DEFAULT CURRENT_TIMESTAMP | Auto-update trigger |
 
 **Foreign Keys:**
-- `updated_by_id` → `staff(id)`
+- `order_id` → `order(id)` ON DELETE RESTRICT
+- `processed_by_id` → `staff(id)`
+
+**Indexes:**
+- `idx_order_return_order_id` - On `order_id`
+- `idx_order_return_number` - UNIQUE on `return_number`
+- `idx_order_return_status` - On `return_status`
 
 ---
 
@@ -146,42 +317,97 @@ This document shows the complete Order Management schema structure with data typ
 | Column | Data Type | Constraints | Notes |
 |--------|-----------|-------------|-------|
 | `id` | BIGSERIAL | PRIMARY KEY | |
-| `order_id` | BIGINT | FK → `order.id`, NOT NULL | 🆕 New FK |
-| `staff_id` | BIGINT | FK → `staff.id`, DEFAULT 0 | ✏️ Renamed from `id_staff` |
-| `amount` | NUMERIC(12,2) | DEFAULT 0 | 🔄 Changed from `float` |
-| `created_at` | TIMESTAMP WITH TIME ZONE | DEFAULT NULL | ✏️ Renamed from `date_created` |
+| `order_id` | BIGINT | FK → `order.id`, NOT NULL | |
+| `order_payment_id` | BIGINT | FK → `order_payment.id` | 🆕 Link to specific payment |
+| `amount` | NUMERIC(12,2) | NOT NULL, CHECK > 0 | |
+| `refund_method` | VARCHAR(100) | NOT NULL | Payment method used for refund |
+| `refund_status` | VARCHAR(50) | DEFAULT 'pending' | pending, processing, completed, failed |
+| `transaction_id` | VARCHAR(300) | DEFAULT '' | Refund transaction ID |
+| `refunded_by_id` | BIGINT | FK → `staff.id` | Staff who processed refund |
+| `refunded_at` | TIMESTAMP WITH TIME ZONE | DEFAULT NULL | When refund was completed |
+| `created_at` | TIMESTAMP WITH TIME ZONE | DEFAULT CURRENT_TIMESTAMP | |
+| `updated_at` | TIMESTAMP WITH TIME ZONE | DEFAULT CURRENT_TIMESTAMP | Auto-update trigger |
 
 **Foreign Keys:**
-- `order_id` → `order(id)`
-- `staff_id` → `staff(id)`
+- `order_id` → `order(id)` ON DELETE RESTRICT
+- `order_payment_id` → `order_payment(id)` ON DELETE SET NULL
+- `refunded_by_id` → `staff(id)`
+
+**Indexes:**
+- `idx_refund_order_id` - On `order_id`
+- `idx_refund_status` - On `refund_status`
+- `idx_refund_refunded_at` - On `refunded_at`
 
 ---
 
 ## Summary
 
 ### Tables in Order Management
-1. **order** - Main order table
-2. **order_detail** - Order details (one-to-one)
-3. **order_line_item** - Order line items
-4. **payment** - Order payments
-5. **order_return** - Order returns
-6. **refund** - Refunds tracking
+1. **order** - Core order information
+2. **order_shipping** - Shipping details (one-to-one)
+3. **order_payment** - Payment transactions (one-to-many)
+4. **order_line_item** - Order line items (one-to-many)
+5. **order_feedback** - Customer feedback (one-to-one)
+6. **order_feedback_image** - Feedback images (one-to-many)
+7. **order_note** - Notes and follow-ups (one-to-many)
+8. **order_tag** - Order tags (many-to-many normalized)
+9. **order_image** - Order images (one-to-many)
+10. **order_after_service** - After-sales service (one-to-one)
+11. **order_return** - Returns (one-to-many)
+12. **refund** - Refunds (one-to-many)
 
-### Key Features
-- **Data Types**: All monetary values changed from `float` to `NUMERIC(12,2)`
-- **Foreign Keys**: Proper relationships with staff and order tables
-- **Indexes**: Optimized for common queries (status, email, customer_name, dates)
-- **Self-referencing**: Orders can have parent orders
+### Key Design Decisions
+
+#### Normalization
+- **Shipping separated**: `order_shipping` table for all shipping-related fields
+- **Payment separated**: `order_payment` allows multiple payments per order
+- **Feedback separated**: `order_feedback` and `order_feedback_image` for reviews
+- **Tags normalized**: `order_tag` junction table instead of comma-separated values
+- **Images normalized**: `order_image` table instead of comma-separated URLs
+- **Notes normalized**: `order_note` table for multiple notes per order
+
+#### Data Integrity
+- **Foreign Keys**: All relationships properly defined with appropriate CASCADE/SET NULL/RESTRICT
+- **Constraints**: CHECK constraints on amounts, quantities, and ratings
+- **UNIQUE constraints**: Order numbers, return numbers, and one-to-one relationships
+- **Data Types**: NUMERIC for all monetary values (no float)
+
+#### Performance
+- **Strategic Indexes**: On foreign keys, status fields, dates, and frequently queried fields
+- **Composite Indexes**: For unique constraints and common query patterns
+
+#### Audit Trail
+- **Timestamps**: `created_at` and `updated_at` on all tables
+- **Staff Tracking**: `created_by_id` and `updated_by_id` on main tables
+- **Auto-update Triggers**: `updated_at` automatically maintained
+
+#### Removed/Consolidated Fields
+- `customer_name`, `email` → Now linked via `customer_id` FK
+- `hinh_order` → Moved to `order_image` table
+- `note`, `note_follow_up` → Moved to `order_note` table
+- `tag` → Normalized to `order_tag` table
+- `rank_order` → Can be derived from `customer.rank`
+- `source_page_fb` → Consolidated into `source` field
+- `local_store`, `live_stream`, `source_ritamie`, `order_diamond`, `pre_order`, `after_services` → Consolidated into `order_type` and flags
+- `error_order` → Renamed to `has_error` (boolean)
+- `claim_order` → Renamed to `is_claim` (boolean)
+- `deposit` → Moved to `order_payment.is_deposit`
 
 ### Relationships
-- `order.parent_id` → `order(id)` (self-referencing)
-- `order.closed_by_staff_id` → `staff.id`
-- `order.referred_by_staff_id` → `staff.id`
-- `order.support_by_staff_id` → `staff.id`
-- `order_detail.order_id` → `order(id)`
-- `order_line_item.order_id` → `order(id)`
-- `payment.order_id` → `order(id)`
-- `order_return.updated_by_id` → `staff.id`
-- `refund.order_id` → `order(id)`
-- `refund.staff_id` → `staff.id`
-
+- `order.parent_order_id` → `order(id)` (self-referencing)
+- `order.customer_id` → `customer(id)`
+- `order.closed_by_staff_id` → `staff(id)`
+- `order.referred_by_staff_id` → `staff(id)`
+- `order.support_by_staff_id` → `staff(id)`
+- `order_shipping.order_id` → `order(id)` (one-to-one)
+- `order_payment.order_id` → `order(id)` (one-to-many)
+- `order_line_item.order_id` → `order(id)` (one-to-many)
+- `order_feedback.order_id` → `order(id)` (one-to-one)
+- `order_feedback_image.order_feedback_id` → `order_feedback(id)` (one-to-many)
+- `order_note.order_id` → `order(id)` (one-to-many)
+- `order_tag.order_id` → `order(id)` (many-to-many)
+- `order_image.order_id` → `order(id)` (one-to-many)
+- `order_after_service.order_id` → `order(id)` (one-to-one)
+- `order_return.order_id` → `order(id)` (one-to-many)
+- `refund.order_id` → `order(id)` (one-to-many)
+- `refund.order_payment_id` → `order_payment(id)`
