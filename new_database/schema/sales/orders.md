@@ -281,6 +281,94 @@ This document shows a clean, normalized Order Management schema following databa
 
 ---
 
+## Special Order Types
+
+#### `order_diamond_status` ✏️ (renamed from `db_status_diamond`)
+**Status**: Custom diamond order tracking (one-to-one with order)
+
+| Column | Data Type | Constraints | Notes |
+|--------|-----------|-------------|-------|
+| `id` | BIGSERIAL | PRIMARY KEY, FK → `order.id` | Same as order.id |
+| `actual_amount` | NUMERIC(12,2) | DEFAULT 0, CHECK >= 0 | Actual final amount |
+| `balance_due` | NUMERIC(12,2) | DEFAULT 0, CHECK >= 0 | Remaining balance to pay |
+| `payment_status` | VARCHAR(50) | DEFAULT '' | ✏️ Renamed from `status_payment` |
+| `design_3d_image_url` | VARCHAR(500) | DEFAULT '' | ✏️ Renamed from `img_3d_design` |
+| `design_status` | VARCHAR(50) | DEFAULT '' | ✏️ Renamed from `status_design` |
+| `design_date` | DATE | DEFAULT NULL | ✏️ Renamed from `time_design` |
+| `material_status` | VARCHAR(50) | DEFAULT '' | ✏️ Renamed from `status_material` |
+| `material_date` | DATE | DEFAULT NULL | ✏️ Renamed from `time_material` |
+| `completion_status` | VARCHAR(50) | DEFAULT '' | ✏️ Renamed from `status_complete` |
+| `completion_date` | DATE | DEFAULT NULL | ✏️ Renamed from `time_complete` |
+| `is_third_party_brand` | BOOLEAN | DEFAULT FALSE | ✏️ Renamed from `third_party_brand` |
+| `created_at` | TIMESTAMP WITH TIME ZONE | DEFAULT CURRENT_TIMESTAMP | |
+| `updated_at` | TIMESTAMP WITH TIME ZONE | DEFAULT CURRENT_TIMESTAMP | Auto-update trigger |
+
+**Foreign Keys:**
+- `id` → `order(id)` ON DELETE CASCADE
+
+**Indexes:**
+- `idx_order_diamond_status_id` - PRIMARY KEY on `id`
+- `idx_order_diamond_status_design_status` - On `design_status`
+- `idx_order_diamond_status_completion_status` - On `completion_status`
+- `idx_order_diamond_status_payment_status` - On `payment_status`
+
+**Note:** `check_status` field (pipe-delimited format) should be normalized into `order_diamond_specification` table below.
+
+---
+
+#### `order_diamond_specification` 🆕 NEW
+**Status**: Normalized specification details for diamond orders
+
+| Column | Data Type | Constraints | Notes |
+|--------|-----------|-------------|-------|
+| `id` | BIGSERIAL | PRIMARY KEY | |
+| `order_id` | BIGINT | FK → `order.id`, NOT NULL | |
+| `spec_type` | VARCHAR(50) | NOT NULL | size, metal, stone, main_stone, engrave, perfection, note |
+| `spec_value` | VARCHAR(500) | DEFAULT '' | Specification value |
+| `status` | VARCHAR(50) | DEFAULT 'pending' | pending, approved, rejected |
+| `created_at` | TIMESTAMP WITH TIME ZONE | DEFAULT CURRENT_TIMESTAMP | |
+| `updated_at` | TIMESTAMP WITH TIME ZONE | DEFAULT CURRENT_TIMESTAMP | Auto-update trigger |
+| UNIQUE(`order_id`, `spec_type`) | | | One spec per type per order |
+
+**Foreign Keys:**
+- `order_id` → `order(id)` ON DELETE CASCADE
+
+**Indexes:**
+- `idx_order_diamond_spec_order_id` - On `order_id`
+- `idx_order_diamond_spec_type` - On `spec_type`
+- `idx_order_diamond_spec_unique` - UNIQUE on (`order_id`, `spec_type`)
+
+---
+
+#### `order_pre_order_status` ✏️ (renamed from `db_status_pre_order`)
+**Status**: Pre-order tracking (one-to-one with order)
+
+| Column | Data Type | Constraints | Notes |
+|--------|-----------|-------------|-------|
+| `id` | BIGSERIAL | PRIMARY KEY, FK → `order.id` | Same as order.id |
+| `status` | VARCHAR(50) | NOT NULL DEFAULT 'pending' | pending, on_hold, processing, completed, cancelled |
+| `hold_until_date` | DATE | DEFAULT NULL | ✏️ Renamed from `hold_until` |
+| `hold_reason` | VARCHAR(256) | DEFAULT '' | ✏️ Renamed from `reason` |
+| `category` | VARCHAR(256) | DEFAULT '' | Product category |
+| `vendor` | VARCHAR(300) | DEFAULT '' | Vendor/supplier name |
+| `processing_date` | DATE | DEFAULT NULL | When processing started |
+| `note` | TEXT | DEFAULT '' | Internal notes |
+| `updated_by_id` | BIGINT | FK → `staff.id` | ✏️ Renamed from `update_by` |
+| `created_at` | TIMESTAMP WITH TIME ZONE | DEFAULT CURRENT_TIMESTAMP | |
+| `updated_at` | TIMESTAMP WITH TIME ZONE | DEFAULT CURRENT_TIMESTAMP | Auto-update trigger |
+
+**Foreign Keys:**
+- `id` → `order(id)` ON DELETE CASCADE
+- `updated_by_id` → `staff(id)`
+
+**Indexes:**
+- `idx_order_pre_order_status_id` - PRIMARY KEY on `id`
+- `idx_order_pre_order_status_status` - On `status`
+- `idx_order_pre_order_status_vendor` - On `vendor`
+- `idx_order_pre_order_status_processing_date` - On `processing_date`
+
+---
+
 ## Returns & Refunds
 
 #### `order_return` ✏️ (renamed from `db_order_return`)
@@ -353,8 +441,11 @@ This document shows a clean, normalized Order Management schema following databa
 8. **order_tag** - Order tags (many-to-many normalized)
 9. **order_image** - Order images (one-to-many)
 10. **order_after_service** - After-sales service (one-to-one)
-11. **order_return** - Returns (one-to-many)
-12. **refund** - Refunds (one-to-many)
+11. **order_diamond_status** - Diamond/custom order tracking (one-to-one)
+12. **order_diamond_specification** - Diamond order specifications (one-to-many)
+13. **order_pre_order_status** - Pre-order tracking (one-to-one)
+14. **order_return** - Returns (one-to-many)
+15. **refund** - Refunds (one-to-many)
 
 ### Key Design Decisions
 
@@ -365,6 +456,7 @@ This document shows a clean, normalized Order Management schema following databa
 - **Tags normalized**: `order_tag` junction table instead of comma-separated values
 - **Images normalized**: `order_image` table instead of comma-separated URLs
 - **Notes normalized**: `order_note` table for multiple notes per order
+- **Diamond specs normalized**: `order_diamond_specification` table instead of pipe-delimited `check_status`
 
 #### Data Integrity
 - **Foreign Keys**: All relationships properly defined with appropriate CASCADE/SET NULL/RESTRICT
@@ -392,6 +484,8 @@ This document shows a clean, normalized Order Management schema following databa
 - `error_order` → Renamed to `has_error` (boolean)
 - `claim_order` → Renamed to `is_claim` (boolean)
 - `deposit` → Moved to `order_payment.is_deposit`
+- `db_status_diamond` → Split into `order_diamond_status` and `order_diamond_specification`
+- `db_status_pre_order` → Renamed to `order_pre_order_status` with improved structure
 
 ### Relationships
 - `order.parent_order_id` → `order(id)` (self-referencing)
@@ -408,6 +502,10 @@ This document shows a clean, normalized Order Management schema following databa
 - `order_tag.order_id` → `order(id)` (many-to-many)
 - `order_image.order_id` → `order(id)` (one-to-many)
 - `order_after_service.order_id` → `order(id)` (one-to-one)
+- `order_diamond_status.id` → `order(id)` (one-to-one, same ID)
+- `order_diamond_specification.order_id` → `order(id)` (one-to-many)
+- `order_pre_order_status.id` → `order(id)` (one-to-one, same ID)
+- `order_pre_order_status.updated_by_id` → `staff(id)`
 - `order_return.order_id` → `order(id)` (one-to-many)
 - `refund.order_id` → `order(id)` (one-to-many)
 - `refund.order_payment_id` → `order_payment(id)`
