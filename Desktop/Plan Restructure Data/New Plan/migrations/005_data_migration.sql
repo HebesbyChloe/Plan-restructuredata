@@ -1,0 +1,412 @@
+-- ============================================================================
+-- Data Migration Script
+-- Migration: 005_data_migration.sql
+-- Description: Transform and migrate data from MySQL to PostgreSQL
+-- WARNING: This script assumes data has been exported from MySQL
+-- ============================================================================
+
+-- ============================================================================
+-- DATA TYPE CONVERSIONS
+-- ============================================================================
+
+-- Note: This script provides examples of data transformation
+-- Actual migration should be done using a tool like pgloader or custom ETL
+
+-- ============================================================================
+-- CUSTOMER MIGRATION
+-- ============================================================================
+
+-- Example: Migrate customer data
+-- INSERT INTO customer (
+--     id, full_name, email, phone, lead_id, address, city, country, post_code,
+--     total_amount, quantity_paid, five_element, customer_info, intention, note,
+--     birth_date, profile_link, future_sales_opportunities, sale_label, source,
+--     rank, last_order_time, error_phone, error_email, last_reachout_date,
+--     birth_month_day, birth_year, recommend_merge, pancake_link,
+--     status_lead_contact, status_potential, current_amount, is_new_lead,
+--     potential_created_date, check_bug, batch_id, last_summary, emotion,
+--     next_action, journey_stage, created_at, updated_at, created_by_id, updated_by_id
+-- )
+-- SELECT 
+--     id,
+--     full_name,
+--     email,
+--     phone,
+--     id_lead,
+--     address,
+--     city,
+--     country,
+--     post_code,
+--     CAST(total AS NUMERIC(12,2)), -- float -> numeric
+--     qty_paid,
+--     five_element,
+--     infor_customer,
+--     intention,
+--     note,
+--     CASE WHEN birth = '0001-01-01' THEN NULL ELSE birth END, -- handle invalid dates
+--     link_profile,
+--     future_sales_opportunities,
+--     sale_label,
+--     source,
+--     rank,
+--     last_time_order,
+--     CAST(error_phone AS BOOLEAN), -- tinyint(1) -> boolean
+--     CAST(error_email AS BOOLEAN),
+--     last_time_reachout,
+--     birth_month_day,
+--     birth_year,
+--     CAST(recommend_merge AS BOOLEAN),
+--     link_pancake,
+--     status_lead_contact,
+--     status_potential,
+--     CAST(current_amount AS NUMERIC(12,2)),
+--     CAST(new_lead_label AS BOOLEAN),
+--     date_created_potential,
+--     check_bug,
+--     id_batch,
+--     last_summary,
+--     emotion,
+--     next_action,
+--     journey_stage,
+--     date_created,
+--     update_date,
+--     update_by,
+--     update_by
+-- FROM db_customer;
+
+-- ============================================================================
+-- ORDER MIGRATION
+-- ============================================================================
+
+-- Example: Migrate order data
+-- INSERT INTO "order" (
+--     id, parent_id, order_number, store, status, customer_name,
+--     facebook_source_page, closed_by_staff_id, referred_by_staff_id,
+--     support_by_staff_id, payment_method, total, net_payment, total_refunded,
+--     email, error_order, order_image, ship_date, delivered_date,
+--     tracking_number, ship_carrier_status, batch_ship, note, tag,
+--     customer_rank, social_review, customer_feedback, feedback_image,
+--     follow_up_note, follow_up_status, is_local_store, is_live_stream,
+--     is_source_ritamie, is_order_diamond, is_after_services, is_pre_order,
+--     is_claim_order, approval_status, is_deposit, created_at, updated_at
+-- )
+-- SELECT 
+--     id,
+--     parent_id,
+--     link_order_number,
+--     store,
+--     status,
+--     customer_name,
+--     source_page_fb,
+--     id_nv_chotdon,
+--     id_nv_gioithieu,
+--     support_by,
+--     payment_method,
+--     CAST(total AS NUMERIC(12,2)),
+--     CAST(net_payment AS NUMERIC(12,2)),
+--     CAST(total_refunded AS NUMERIC(12,2)),
+--     email,
+--     CAST(error_order AS BOOLEAN),
+--     hinh_order,
+--     CASE WHEN ship_date = '0000-00-00 00:00:00' THEN NULL ELSE ship_date END,
+--     CASE WHEN delivered_date = '0000-00-00 00:00:00' THEN NULL ELSE delivered_date END,
+--     tracking_number,
+--     ship_carrier_status,
+--     batch_ship,
+--     note,
+--     tag,
+--     rank_order,
+--     social_review,
+--     customer_feedback,
+--     img_feedback,
+--     note_follow_up,
+--     status_follow_up,
+--     CAST(local_store AS BOOLEAN),
+--     CAST(live_stream AS BOOLEAN),
+--     CAST(source_ritamie AS BOOLEAN),
+--     CAST(order_diamond AS BOOLEAN),
+--     CAST(after_services AS BOOLEAN),
+--     CAST(pre_order AS BOOLEAN),
+--     CAST(claim_order AS BOOLEAN),
+--     approval_status,
+--     CAST(deposit AS BOOLEAN),
+--     date_created,
+--     date_created -- updated_at, use date_created if no update_date
+-- FROM db_order;
+
+-- ============================================================================
+-- CAMPAIGN NORMALIZATION
+-- ============================================================================
+
+-- Migrate campaign data and normalize comma-separated values
+-- Step 1: Insert campaigns
+-- INSERT INTO campaign (
+--     id, name, status, spend, budget, budget_cycle,
+--     cost_impression_goal, cost_lead_goal, cost_new_lead_goal,
+--     cost_order_goal, roas_goal, start_date, end_date, created_at, updated_at
+-- )
+-- SELECT 
+--     id,
+--     name,
+--     status::campaign_status, -- cast enum
+--     spend,
+--     budget,
+--     budget_cycle::budget_cycle,
+--     cost_impression_goal,
+--     cost_lead_goal,
+--     cost_new_lead_goal,
+--     cost_order_goal,
+--     roas_goal,
+--     time_start,
+--     time_end,
+--     date_created,
+--     updated_at
+-- FROM db_campaigns;
+
+-- Step 2: Normalize ids_ads (comma-separated to junction table)
+-- INSERT INTO campaign_ads (campaign_id, ad_id)
+-- SELECT 
+--     c.id,
+--     TRIM(unnest(string_to_array(c.ids_ads, ',')))
+-- FROM db_campaigns c
+-- WHERE c.ids_ads IS NOT NULL AND c.ids_ads != '';
+
+-- Step 3: Normalize ids_ads_running
+-- INSERT INTO campaign_ads_running (campaign_id, ad_id)
+-- SELECT 
+--     c.id,
+--     TRIM(unnest(string_to_array(c.ids_ads_running, ',')))
+-- FROM db_campaigns c
+-- WHERE c.ids_ads_running IS NOT NULL AND c.ids_ads_running != '';
+
+-- Step 4: Normalize target_audiences
+-- INSERT INTO campaign_target_audience (campaign_id, audience_id)
+-- SELECT 
+--     c.id,
+--     TRIM(unnest(string_to_array(c.target_audiences, ',')))
+-- FROM db_campaigns c
+-- WHERE c.target_audiences IS NOT NULL AND c.target_audiences != '';
+
+-- Step 5: Normalize collection_selection
+-- INSERT INTO campaign_collection (campaign_id, collection_id)
+-- SELECT 
+--     c.id,
+--     TRIM(unnest(string_to_array(c.collection_selection, ',')))
+-- FROM db_campaigns c
+-- WHERE c.collection_selection IS NOT NULL AND c.collection_selection != '';
+
+-- ============================================================================
+-- PRODUCT CATEGORY NORMALIZATION
+-- ============================================================================
+
+-- Migrate products
+-- INSERT INTO product (
+--     id, status, sku, thumbnail, image_name, retail_price, sale_price,
+--     size, name, grade, year, bead_size, origin, gender, material,
+--     element, description_en, description_vn, box_dimension, intention,
+--     color, stone, charm, charm_size, tag, total_sales, is_pre_order,
+--     promotion_id, created_at, updated_at, created_by_id
+-- )
+-- SELECT 
+--     id,
+--     status,
+--     sku,
+--     thumb_nail,
+--     name_image,
+--     CAST(retail_price AS NUMERIC(12,2)),
+--     CAST(sale_price AS NUMERIC(12,2)),
+--     size,
+--     name,
+--     grade,
+--     year,
+--     bead_size,
+--     origin,
+--     gender,
+--     material,
+--     element,
+--     eng_description,
+--     vn_description,
+--     box_dimension,
+--     intention,
+--     color,
+--     stone,
+--     charm,
+--     charm_size,
+--     tag,
+--     total_sales,
+--     CAST(pre_order AS BOOLEAN),
+--     id_promo,
+--     date_created,
+--     last_update,
+--     NULL -- by_user, would need to map to staff.id
+-- FROM db_iv_product;
+
+-- Normalize product categories (comma-separated)
+-- INSERT INTO product_category (product_id, category_id)
+-- SELECT 
+--     p.id,
+--     c.id
+-- FROM db_iv_product p
+-- CROSS JOIN LATERAL unnest(string_to_array(p.category, ',')) AS cat_name
+-- JOIN category c ON c.name = TRIM(cat_name)
+-- WHERE p.category IS NOT NULL AND p.category != '';
+
+-- Normalize product tags (comma-separated)
+-- INSERT INTO product_tag (product_id, tag_name)
+-- SELECT 
+--     p.id,
+--     TRIM(unnest(string_to_array(p.tag, ',')))
+-- FROM db_iv_product p
+-- WHERE p.tag IS NOT NULL AND p.tag != '';
+
+-- ============================================================================
+-- TASK ASSIGNEE NORMALIZATION
+-- ============================================================================
+
+-- Normalize task assignees (comma-separated ids_assignee)
+-- INSERT INTO task_assignee (task_id, staff_id)
+-- SELECT 
+--     rt.id,
+--     CAST(TRIM(unnest(string_to_array(rt.ids_assignee, ','))) AS BIGINT)
+-- FROM db_task_repeat_space rt
+-- WHERE rt.ids_assignee IS NOT NULL AND rt.ids_assignee != '';
+
+-- ============================================================================
+-- PROMOTION NORMALIZATION
+-- ============================================================================
+
+-- Migrate promotions
+-- INSERT INTO promotion (
+--     id, project_id, project_name, is_active, promo_type, name,
+--     amount, description, text_bar, sync, reset, start_date, end_date,
+--     created_at, updated_at
+-- )
+-- SELECT 
+--     id,
+--     id_project,
+--     name_project,
+--     CAST(status AS BOOLEAN),
+--     type,
+--     name_promo,
+--     amount,
+--     description,
+--     text_bar,
+--     CAST(sync AS BOOLEAN),
+--     CAST(reset AS BOOLEAN),
+--     CASE WHEN date_start = '0000-00-00 00:00:00' THEN NULL ELSE date_start END,
+--     CASE WHEN date_end = '0000-00-00 00:00:00' THEN NULL ELSE date_end END,
+--     date_created,
+--     date_update
+-- FROM db_promo;
+
+-- Normalize promotion categories
+-- INSERT INTO promotion_category (promotion_id, category_id)
+-- SELECT 
+--     p.id,
+--     c.id
+-- FROM db_promo p
+-- CROSS JOIN LATERAL unnest(string_to_array(p.category, ',')) AS cat_name
+-- JOIN category c ON c.name = TRIM(cat_name)
+-- WHERE p.category IS NOT NULL AND p.category != '';
+
+-- Normalize promotion excluded categories
+-- INSERT INTO promotion_excluded_category (promotion_id, category_id)
+-- SELECT 
+--     p.id,
+--     c.id
+-- FROM db_promo p
+-- CROSS JOIN LATERAL unnest(string_to_array(p.not_category, ',')) AS cat_name
+-- JOIN category c ON c.name = TRIM(cat_name)
+-- WHERE p.not_category IS NOT NULL AND p.not_category != '';
+
+-- Similar for products and attributes...
+
+-- ============================================================================
+-- CUSTOMER BATCH NORMALIZATION
+-- ============================================================================
+
+-- Normalize customer batch conversions
+-- INSERT INTO customer_batch_customer (batch_id, customer_id)
+-- SELECT 
+--     cb.id,
+--     CAST(TRIM(unnest(string_to_array(cb.conversion_customer_id, ','))) AS BIGINT)
+-- FROM db_customer_batch cb
+-- WHERE cb.conversion_customer_id IS NOT NULL AND cb.conversion_customer_id != '';
+
+-- INSERT INTO customer_batch_order (batch_id, order_id)
+-- SELECT 
+--     cb.id,
+--     CAST(TRIM(unnest(string_to_array(cb.conversion_order_id, ','))) AS BIGINT)
+-- FROM db_customer_batch cb
+-- WHERE cb.conversion_order_id IS NOT NULL AND cb.conversion_order_id != '';
+
+-- ============================================================================
+-- CHARACTER SET HANDLING
+-- ============================================================================
+
+-- PostgreSQL uses UTF-8 by default, so character set conversion should be automatic
+-- However, ensure source data is properly encoded when exporting from MySQL
+
+-- ============================================================================
+-- NULL HANDLING
+-- ============================================================================
+
+-- Handle MySQL's '0000-00-00' dates
+-- These should be converted to NULL in PostgreSQL
+
+-- Example function to clean dates:
+-- CREATE OR REPLACE FUNCTION clean_mysql_date(mysql_date TEXT)
+-- RETURNS DATE AS $$
+-- BEGIN
+--     IF mysql_date = '0000-00-00' OR mysql_date = '0000-00-00 00:00:00' THEN
+--         RETURN NULL;
+--     ELSE
+--         RETURN mysql_date::DATE;
+--     END IF;
+-- EXCEPTION
+--     WHEN OTHERS THEN
+--         RETURN NULL;
+-- END;
+-- $$ LANGUAGE plpgsql;
+
+-- ============================================================================
+-- DATA VALIDATION QUERIES
+-- ============================================================================
+
+-- Run these after migration to validate data:
+
+-- Check for orphaned records
+-- SELECT COUNT(*) FROM order_line_item oli
+-- LEFT JOIN product p ON oli.product_sku = p.sku
+-- WHERE p.id IS NULL;
+
+-- Check for invalid foreign keys
+-- SELECT COUNT(*) FROM "order" o
+-- LEFT JOIN staff s ON o.closed_by_staff_id = s.id
+-- WHERE o.closed_by_staff_id != 0 AND s.id IS NULL;
+
+-- Check for data type issues
+-- SELECT COUNT(*) FROM customer WHERE total_amount < 0;
+-- SELECT COUNT(*) FROM "order" WHERE total < 0;
+
+-- Check normalization completeness
+-- SELECT COUNT(*) FROM campaign c
+-- LEFT JOIN campaign_ads ca ON c.id = ca.campaign_id
+-- WHERE c.ids_ads IS NOT NULL AND c.ids_ads != '' AND ca.id IS NULL;
+
+-- ============================================================================
+-- MIGRATION NOTES
+-- ============================================================================
+
+-- 1. Use pgloader or similar tool for actual data migration
+-- 2. Test migration on a copy of production data first
+-- 3. Run validation queries after migration
+-- 4. Handle character encoding issues (UTF-8)
+-- 5. Convert MySQL-specific data types (ENUM, YEAR, etc.)
+-- 6. Handle invalid dates ('0000-00-00')
+-- 7. Normalize comma-separated values before or during migration
+-- 8. Update sequences after migration:
+--     SELECT setval('customer_id_seq', (SELECT MAX(id) FROM customer));
+--     SELECT setval('order_id_seq', (SELECT MAX(id) FROM "order"));
+--     -- etc. for all tables with sequences
+
