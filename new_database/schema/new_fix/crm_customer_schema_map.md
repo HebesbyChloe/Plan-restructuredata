@@ -418,23 +418,44 @@ Multi-tenant:
 | `sentiment_score` | NUMERIC | NULL | Sentiment score |
 | `recorded_by` | BIGINT | NULL, FK → `sys_users(id)` | 🔗 Staff who recorded |
 | `source` | TEXT | NULL | Source of journey entry |
+| `interaction_type` | VARCHAR | NULL | Interaction type: 'email', 'sms', 'call', 'visit', 'chat' |
+| `channel_id` | BIGINT | NULL, FK → `marketing_channels(id)` | 🔗 Marketing channel |
+| `campaign_id` | BIGINT | NULL, FK → `mkt_campaigns(id)` | 🔗 Campaign |
+| `store_id` | INTEGER | NULL, FK → `stores(id)` | 🔗 Store location |
+| `brand_id` | BIGINT | NULL, FK → `brands(id)` | 🔗 Brand |
+| `related_order_id` | BIGINT | NULL, FK → `orders(id)` | 🔗 Related order |
 | `created_at` | TIMESTAMPTZ | NULL | ⏰ Creation timestamp |
 
 **Foreign Keys:**
 - `personal_key_id` → `crm_personal_keys(id)`
 - `recorded_by` → `sys_users(id)`
+- `channel_id` → `marketing_channels(id)`
+- `campaign_id` → `mkt_campaigns(id)`
+- `store_id` → `stores(id)`
+- `brand_id` → `brands(id)`
+- `related_order_id` → `orders(id)`
 
 **Indexes:**
 - `idx_crm_personal_journey_personal_key(personal_key_id, created_at)` - Person journey timeline 📊
 - `idx_crm_personal_journey_recorded_by(recorded_by)` - Staff lookup 📊
 - `idx_crm_personal_journey_stage(stage)` - Stage filtering 📊
 - `idx_crm_personal_journey_created_at(created_at)` - Time-based queries 📊
+- `idx_crm_personal_journey_interaction_type(interaction_type)` - Interaction type filtering 📊
+- `idx_crm_personal_journey_channel_id(channel_id)` - Channel lookup 📊
+- `idx_crm_personal_journey_campaign_id(campaign_id)` - Campaign lookup 📊
+- `idx_crm_personal_journey_store_id(store_id)` - Store lookup 📊
+- `idx_crm_personal_journey_brand_id(brand_id)` - Brand lookup 📊
+- `idx_crm_personal_journey_related_order_id(related_order_id)` - Order lookup 📊
 
 **Use Cases:**
 - Customer journey tracking
 - Timeline visualization
 - AI-powered insights
 - Sentiment analysis
+- Multi-channel interaction tracking
+- Campaign attribution
+- Store visit tracking
+- Order-related journey entries
 
 ---
 
