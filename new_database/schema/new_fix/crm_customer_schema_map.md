@@ -27,7 +27,7 @@ This document provides a complete skeleton map and detailed listing of all CRM-r
 │  • Tracks: name, slug, plan, status, settings                   │
 └─────────────────────────────────────────────────────────────────┘
          │
-         ├─── 1:N ────► hr_staff (tenant_id)
+         ├─── 1:N ────► sys_users (primary_tenant_id)
          ├─── 1:N ────► crm_customers (tenant_id)
          ├─── 1:N ────► crm_leads (tenant_id)
          ├─── 1:N ────► crm_potential (tenant_id)
@@ -97,7 +97,7 @@ This document provides a complete skeleton map and detailed listing of all CRM-r
 └─────────────────────────────────────────────────────────────────┘
          │
          ├─── N:1 ────► crm_personal_keys (personal_key_id)
-         └─── N:1 ────► hr_staff (recorded_by, logical)
+         └─── N:1 ────► sys_users (recorded_by, logical)
 
 
 ┌─────────────────────────────────────────────────────────────────┐
@@ -109,7 +109,7 @@ This document provides a complete skeleton map and detailed listing of all CRM-r
 └─────────────────────────────────────────────────────────────────┘
          │
          ├─── N:1 ────► crm_personal_keys (personal_key_id)
-         ├─── N:1 ────► hr_staff (assigned_to)
+         ├─── N:1 ────► sys_users (assigned_to)
          ├─── N:1 ────► orders (order_id)
          ├─── N:1 ────► sys_tenants (tenant_id)
          └─── 1:N ────► crm_customers (first_lead_id)
@@ -140,7 +140,7 @@ This document provides a complete skeleton map and detailed listing of all CRM-r
 └─────────────────────────────────────────────────────────────────┘
          │
          ├─── N:1 ────► crm_personal_keys (personal_key_id)
-         ├─── N:1 ────► hr_staff (assigned_to)
+         ├─── N:1 ────► sys_users (assigned_to)
          ├─── N:1 ────► mkt_campaigns (campaign_id)
          ├─── N:1 ────► orders (converted_to_order_id)
          └─── N:1 ────► sys_tenants (tenant_id)
@@ -168,7 +168,7 @@ This document provides a complete skeleton map and detailed listing of all CRM-r
          │
          ├─── N:1 ────► crm_reengaged_batches (batch_id)
          ├─── N:1 ────► crm_personal_keys (personal_key_id)
-         ├─── N:1 ────► hr_staff (assigned_to)
+         ├─── N:1 ────► sys_users (assigned_to)
          └─── N:1 ────► orders (converted_order_id)
 
 
@@ -185,10 +185,17 @@ This document provides a complete skeleton map and detailed listing of all CRM-r
 ┌─────────────────────────────────────────────────────────────────┐
 │                    REFERENCED TABLES (External)                  │
 │  ────────────────────────────────────────────────────────────  │
-│  • hr_staff              - Staff/employee records               │
+│  • sys_users             - Staff/employee accounts (system users) │
 │    └── Referenced by: crm_leads.assigned_to,                   │
 │        crm_potential.assigned_to,                               │
-│        SMS_meta_conversation.assigned_staff_id                  │
+│        SMS_meta_conversation.assigned_staff_id,                 │
+│        crm_personal_journey.recorded_by,                         │
+│        crm_reengaged_batches.assigned_to,                       │
+│        crm_reengaged_batches.created_by,                        │
+│        crm_reengage_personal_keys.assigned_to,                  │
+│        orders_after_sales.updated_by,                           │
+│        project_tasks.id_assignee,                               │
+│        project_tasks.assignee_by                                │
 │  • orders                - Order records                         │
 │    └── Referenced by: crm_leads.order_id,                      │
 │        crm_potential.converted_to_order_id,                    │
@@ -215,8 +222,8 @@ Person-Centric:
   crm_personal_keys 1──N crm_reengage_personal_keys
 
 Lead/Opportunity:
-  hr_staff 1──N crm_leads.assigned_to
-  hr_staff 1──N crm_potential.assigned_to
+  sys_users 1──N crm_leads.assigned_to
+  sys_users 1──N crm_potential.assigned_to
   mkt_campaigns 1──N crm_potential
   crm_potential N──1 orders (via converted_to_order_id)
   crm_leads N──1 orders (via order_id)
@@ -231,11 +238,11 @@ SMS to CRM:
   SMS_service_accounts N──1 mkt_campaigns
   SMS_service_accounts N──1 project_projects
   SMS_meta_conversation N──1 crm_customers
-  SMS_meta_conversation N──1 hr_staff
+  SMS_meta_conversation N──1 sys_users
 
 Multi-tenant:
   sys_tenants 1──N crm_customers, crm_leads, crm_potential,
-                  hr_staff, orders, mkt_campaigns, project_projects
+                  sys_users, orders, mkt_campaigns, project_projects
 ```
 
 ---
@@ -263,30 +270,8 @@ Multi-tenant:
 
 ---
 
-### 2. `hr_staff`
-**Purpose:** Staff/employee records used as assignees and owners in CRM entities.
 
-| Column | Data Type | Constraints | Notes |
-|--------|-----------|-------------|-------|
-| `id` | INTEGER | PRIMARY KEY | Staff identifier |
-| `full_name` | VARCHAR | NULL | Staff full name |
-| `location` | VARCHAR | NULL | Staff location |
-| `tenant_id` | INTEGER | FK → `sys_tenants(id)` | 🔗 Tenant assignment |
-
-**Foreign Keys:**
-- `tenant_id` → `sys_tenants(id)`
-
-**Indexes:**
-- `idx_hr_staff_tenant_id(tenant_id)` - Tenant lookup 📊
-
-**Use Cases:**
-- Staff assignment to leads, potentials, conversations
-- Workload management
-- Performance tracking
-
----
-
-### 3. `crm_personal_keys`
+### 2. `crm_personal_keys`
 **Purpose:** Canonical person identifier used across CRM. Central hub for all person-related data.
 
 | Column | Data Type | Constraints | Notes |
@@ -430,15 +415,17 @@ Multi-tenant:
 | `summary_text` | TEXT | NULL | Summary text |
 | `confidence_score` | NUMERIC | NULL | Confidence score |
 | `sentiment_score` | NUMERIC | NULL | Sentiment score |
-| `recorded_by` | INTEGER | NULL | Staff who recorded (logical link to hr_staff) |
+| `recorded_by` | BIGINT | NULL, FK → `sys_users(id)` | 🔗 Staff who recorded |
 | `source` | TEXT | NULL | Source of journey entry |
 | `created_at` | TIMESTAMPTZ | NULL | ⏰ Creation timestamp |
 
 **Foreign Keys:**
 - `personal_key_id` → `crm_personal_keys(id)`
+- `recorded_by` → `sys_users(id)`
 
 **Indexes:**
 - `idx_crm_personal_journey_personal_key(personal_key_id, created_at)` - Person journey timeline 📊
+- `idx_crm_personal_journey_recorded_by(recorded_by)` - Staff lookup 📊
 - `idx_crm_personal_journey_stage(stage)` - Stage filtering 📊
 - `idx_crm_personal_journey_created_at(created_at)` - Time-based queries 📊
 
@@ -459,7 +446,7 @@ Multi-tenant:
 | `personal_key_id` | INTEGER | FK → `crm_personal_keys(id)` | 🔗 Person identifier |
 | `status` | VARCHAR | NULL | Lead status |
 | `source` | VARCHAR | NULL | Lead source |
-| `assigned_to` | INTEGER | FK → `hr_staff(id)` | 🔗 Assigned staff |
+| `assigned_to` | BIGINT | NULL, FK → `sys_users(id)` | 🔗 Assigned staff |
 | `order_id` | BIGINT | FK → `orders(id)` | 🔗 Linked order |
 | `tenant_id` | INTEGER | FK → `sys_tenants(id)` | 🔗 Tenant |
 | `converted_at` | TIMESTAMPTZ | NULL | ⏰ Conversion timestamp |
@@ -468,7 +455,7 @@ Multi-tenant:
 
 **Foreign Keys:**
 - `personal_key_id` → `crm_personal_keys(id)`
-- `assigned_to` → `hr_staff(id)`
+- `assigned_to` → `sys_users(id)`
 - `order_id` → `orders(id)`
 - `tenant_id` → `sys_tenants(id)`
 
@@ -535,7 +522,7 @@ Multi-tenant:
 |--------|-----------|-------------|-------|
 | `id` | BIGINT | PRIMARY KEY | Potential identifier |
 | `personal_key_id` | INTEGER | FK → `crm_personal_keys(id)` | 🔗 Person identifier |
-| `assigned_to` | INTEGER | FK → `hr_staff(id)` | 🔗 Assigned staff |
+| `assigned_to` | BIGINT | NULL, FK → `sys_users(id)` | 🔗 Assigned staff |
 | `status` | VARCHAR | NULL | Opportunity status |
 | `stage` | VARCHAR | NULL | Sales stage |
 | `priority` | VARCHAR | NULL | Priority level |
@@ -551,7 +538,7 @@ Multi-tenant:
 
 **Foreign Keys:**
 - `personal_key_id` → `crm_personal_keys(id)`
-- `assigned_to` → `hr_staff(id)`
+- `assigned_to` → `sys_users(id)`
 - `campaign_id` → `mkt_campaigns(id)`
 - `converted_to_order_id` → `orders(id)`
 - `tenant_id` → `sys_tenants(id)`
@@ -579,7 +566,7 @@ Multi-tenant:
 |--------|-----------|-------------|-------|
 | `id` | INTEGER | PRIMARY KEY | Batch identifier |
 | `batch_name` | VARCHAR | NULL | Batch name |
-| `assigned_to` | INTEGER | NULL | Assigned staff (logical link to hr_staff) |
+| `assigned_to` | BIGINT | NULL, FK → `sys_users(id)` | 🔗 Assigned staff |
 | `historical_value` | INTEGER | NULL | Historical value |
 | `status` | VARCHAR | NULL | Batch status |
 | `created_date` | DATE | NULL | Creation date |
@@ -592,7 +579,11 @@ Multi-tenant:
 | `reactivated_revenue` | NUMERIC | NULL | Reactivated revenue |
 | `target_revenue` | NUMERIC | NULL | Target revenue |
 | `target_response_rate` | NUMERIC | NULL | Target response rate |
-| `created_by` | BIGINT | NULL | Created by staff (logical link to hr_staff) |
+| `created_by` | BIGINT | NULL, FK → `sys_users(id)` | 🔗 Created by staff |
+
+**Foreign Keys:**
+- `assigned_to` → `sys_users(id)`
+- `created_by` → `sys_users(id)`
 
 **Indexes:**
 - `idx_crm_reengaged_batches_status(status)` - Status filtering 📊
@@ -614,7 +605,7 @@ Multi-tenant:
 | `id` | BIGINT | PRIMARY KEY | Re-engagement entry identifier |
 | `batch_id` | INTEGER | FK → `crm_reengaged_batches(id)` | 🔗 Batch identifier |
 | `personal_key_id` | INTEGER | FK → `crm_personal_keys(id)` | 🔗 Person identifier |
-| `assigned_to` | INTEGER | FK → `hr_staff(id)` | 🔗 Assigned staff |
+| `assigned_to` | BIGINT | NULL, FK → `sys_users(id)` | 🔗 Assigned staff |
 | `priority` | VARCHAR | NULL | Priority level |
 | `status` | VARCHAR | NULL | Status (enum via check) |
 | `contact_attempts` | INTEGER | NULL | Number of contact attempts |
@@ -633,7 +624,7 @@ Multi-tenant:
 **Foreign Keys:**
 - `batch_id` → `crm_reengaged_batches(id)`
 - `personal_key_id` → `crm_personal_keys(id)`
-- `assigned_to` → `hr_staff(id)`
+- `assigned_to` → `sys_users(id)`
 - `converted_order_id` → `orders(id)`
 
 **Indexes:**
@@ -852,14 +843,16 @@ Multi-tenant:
 | `details` | TEXT | NULL | Case details |
 | `received_date` | DATE | NULL | Received date |
 | `inquiry_date` | DATE | NULL | Inquiry date |
-| `updated_by` | INTEGER | NULL | Updated by staff (logical link to hr_staff) |
+| `updated_by` | BIGINT | NULL, FK → `sys_users(id)` | 🔗 Updated by staff |
 | `created_at` | TIMESTAMPTZ | NULL | ⏰ Creation timestamp |
 
 **Foreign Keys:**
 - `order_id` → `orders(id)`
+- `updated_by` → `sys_users(id)`
 
 **Indexes:**
 - `idx_orders_after_sales_order_id(order_id)` - Order lookup 📊
+- `idx_orders_after_sales_updated_by(updated_by)` - Staff lookup 📊
 - `idx_orders_after_sales_status(status)` - Status filtering 📊
 - `idx_orders_after_sales_rma_code(rma_code)` - RMA lookup 📊
 
@@ -973,8 +966,8 @@ Multi-tenant:
 |--------|-----------|-------------|-------|
 | `id` | INTEGER | PRIMARY KEY | Task identifier |
 | `id_project` | INTEGER | FK → `project_projects(id)` | 🔗 Project identifier |
-| `id_assignee` | INTEGER | NULL | Assignee (logical link to hr_staff) |
-| `assignee_by` | INTEGER | NULL | Assigned by (logical link to hr_staff) |
+| `id_assignee` | BIGINT | NULL, FK → `sys_users(id)` | 🔗 Assignee |
+| `assignee_by` | BIGINT | NULL, FK → `sys_users(id)` | 🔗 Assigned by |
 | `status` | VARCHAR | NULL | Task status |
 | `deadline` | TIMESTAMPTZ | NULL | ⏰ Deadline |
 | `date_updated` | TIMESTAMPTZ | NULL | ⏰ Last update timestamp |
@@ -985,12 +978,15 @@ Multi-tenant:
 **Foreign Keys:**
 - `id_project` → `project_projects(id)`
 - `tenant_id` → `sys_tenants(id)`
+- `id_assignee` → `sys_users(id)`
+- `assignee_by` → `sys_users(id)`
 
 **Indexes:**
 - `idx_project_tasks_id_project(id_project)` - Project lookup 📊
 - `idx_project_tasks_tenant_id(tenant_id)` - Tenant filtering 📊
 - `idx_project_tasks_status(status)` - Status filtering 📊
 - `idx_project_tasks_deadline(deadline)` - Deadline queries 📊
+- `idx_project_tasks_assignee(id_assignee)` - Assignee lookup 📊
 
 **Use Cases:**
 - Task management
@@ -1065,11 +1061,11 @@ Multi-tenant:
 | `id` | UUID | PRIMARY KEY | Conversation identifier |
 | `conversation_id` | VARCHAR | UNIQUE | 🔒 Conversation ID (matches SMS_messages.conversation_id) |
 | `customer_id_crm` | INTEGER | FK → `crm_customers(id)` | 🔗 CRM customer |
-| `assigned_staff_id` | INTEGER | FK → `hr_staff(id)` | 🔗 Assigned staff |
+| `assigned_staff_id` | BIGINT | NULL, FK → `sys_users(id)` | 🔗 Assigned staff |
 
 **Foreign Keys:**
 - `customer_id_crm` → `crm_customers(id)`
-- `assigned_staff_id` → `hr_staff(id)`
+- `assigned_staff_id` → `sys_users(id)`
 
 **Unique Constraints:**
 - `conversation_id` (one meta record per conversation)
@@ -1143,13 +1139,13 @@ Multi-tenant:
 
 ### Lead/Opportunity Relationships
 
-8. **`hr_staff` → `crm_leads`** (One-to-Many)
+8. **`sys_users` → `crm_leads`** (One-to-Many)
    - Staff can be assigned to many leads
-   - `crm_leads.assigned_to` → `hr_staff.id`
+   - `crm_leads.assigned_to` → `sys_users.id`
 
-9. **`hr_staff` → `crm_potential`** (One-to-Many)
+9. **`sys_users` → `crm_potential`** (One-to-Many)
    - Staff can be assigned to many opportunities
-   - `crm_potential.assigned_to` → `hr_staff.id`
+   - `crm_potential.assigned_to` → `sys_users.id`
 
 10. **`mkt_campaigns` → `crm_potential`** (One-to-Many)
     - Campaigns can generate many opportunities
@@ -1195,9 +1191,9 @@ Multi-tenant:
     - Conversations link to CRM customers
     - `SMS_meta_conversation.customer_id_crm` → `crm_customers.id`
 
-20. **`SMS_meta_conversation` → `hr_staff`** (Many-to-One)
+20. **`SMS_meta_conversation` → `sys_users`** (Many-to-One)
     - Conversations can be assigned to staff
-    - `SMS_meta_conversation.assigned_staff_id` → `hr_staff.id`
+    - `SMS_meta_conversation.assigned_staff_id` → `sys_users.id`
 
 21. **`SMS_meta_conversation` ↔ `SMS_messages`** (One-to-Many, Logical)
     - One conversation can have many messages
@@ -1208,7 +1204,7 @@ Multi-tenant:
 
 22. **`sys_tenants` → Multiple Tables** (One-to-Many)
     - All CRM tables support multi-tenancy
-    - Tables: `crm_customers`, `crm_leads`, `crm_potential`, `hr_staff`, `orders`, `mkt_campaigns`, `project_projects`
+    - Tables: `crm_customers`, `crm_leads`, `crm_potential`, `sys_users`, `orders`, `mkt_campaigns`, `project_projects`
 
 ---
 
@@ -1231,11 +1227,11 @@ Multi-tenant:
 **`crm_leads`:**
 - `idx_crm_leads_personal_key(personal_key_id)` - Person lookup 📊
 - `idx_crm_leads_tenant_id(tenant_id)` - Tenant filtering 📊
-- `idx_crm_leads_assigned_to(assigned_to)` - Staff assignment lookup 📊
+- `idx_crm_leads_assigned_to(assigned_to)` - Staff assignment lookup (sys_users) 📊
 
 **`crm_potential`:**
 - `idx_crm_potential_personal_key(personal_key_id)` - Person lookup 📊
-- `idx_crm_potential_assigned_to(assigned_to)` - Staff assignment lookup 📊
+- `idx_crm_potential_assigned_to(assigned_to)` - Staff assignment lookup (sys_users) 📊
 - `idx_crm_potential_campaign_id(campaign_id)` - Campaign lookup 📊
 - `idx_crm_potential_tenant_id(tenant_id)` - Tenant filtering 📊
 
