@@ -160,47 +160,93 @@ Custom products (`product_type='custom'`) can have any fields that don't exist i
 
 ---
 
+#### `warehouse` 🆕 NEW
+**Status**: Warehouse/Location master data
+
+| Column | Data Type | Constraints | Notes |
+|--------|-----------|-------------|-------|
+| `id` | BIGSERIAL | PRIMARY KEY | |
+| `code` | VARCHAR(10) | NOT NULL, UNIQUE | ✏️ Warehouse code (e.g., 'VN', 'US', 'WH-001') |
+| `name` | VARCHAR(200) | NOT NULL | Warehouse name (e.g., 'Vietnam Warehouse', 'US Warehouse') |
+| `address` | TEXT | DEFAULT NULL | Warehouse address |
+| `city` | VARCHAR(100) | DEFAULT NULL | City |
+| `country` | VARCHAR(100) | DEFAULT NULL | Country |
+| `phone` | VARCHAR(50) | DEFAULT NULL | Contact phone |
+| `email` | VARCHAR(200) | DEFAULT NULL | Contact email |
+| `manager_id` | BIGINT | FK → `staff.id`, NULL | Warehouse manager |
+| `status` | VARCHAR(50) | DEFAULT 'active' | Warehouse status: 'active', 'inactive', 'closed' |
+| `created_at` | TIMESTAMP WITH TIME ZONE | DEFAULT CURRENT_TIMESTAMP | |
+| `updated_at` | TIMESTAMP WITH TIME ZONE | DEFAULT CURRENT_TIMESTAMP | |
+| `created_by_id` | BIGINT | FK → `staff.id`, NULL | |
+| `updated_by_id` | BIGINT | FK → `staff.id`, NULL | |
+
+**Foreign Keys:**
+- `manager_id` → `staff(id)` ON DELETE SET NULL
+- `created_by_id` → `staff(id)` ON DELETE SET NULL
+- `updated_by_id` → `staff(id)` ON DELETE SET NULL
+
+**Indexes:**
+- `idx_warehouse_code` (UNIQUE on `code`)
+- `idx_warehouse_name` (on `name`)
+- `idx_warehouse_status` (on `status`)
+- `idx_warehouse_manager` (on `manager_id`)
+
+**Note**: 
+- `code` is unique and used as identifier (e.g., 'VN', 'US', 'WH-001')
+- Warehouse can be active, inactive, or closed
+- Manager can be assigned to warehouse for responsibility tracking
+
+---
+
 #### `stock` ✏️ (renamed from `db_iv_stock`)
 **Status**: Inventory stock
 
 | Column | Data Type | Constraints | Notes |
 |--------|-----------|-------------|-------|
 | `id` | BIGSERIAL | PRIMARY KEY | |
-| `product_sku` | VARCHAR(100) | NOT NULL, UNIQUE | ✏️ Renamed from `sku_product` |
-| `quantity_vn` | INTEGER | DEFAULT 0, CHECK >= 0 | 🆕 Số lượng tại kho VN |
-| `quantity_us` | INTEGER | DEFAULT 0, CHECK >= 0 | 🆕 Số lượng tại kho US |
-| `outbound_vn` | INTEGER | DEFAULT 0, CHECK >= 0 | 🆕 Số lượng đã xuất/chuyển từ kho VN |
-| `outbound_us` | INTEGER | DEFAULT 0, CHECK >= 0 | 🆕 Số lượng đã xuất/chuyển từ kho US |
-| `inbound_vn` | INTEGER | DEFAULT 0, CHECK >= 0 | 🆕 Số lượng sắp về/dự kiến về kho VN |
-| `inbound_us` | INTEGER | DEFAULT 0, CHECK >= 0 | 🆕 Số lượng sắp về/dự kiến về kho US |
+| `product_sku` | VARCHAR(100) | NOT NULL | ✏️ Renamed from `sku_product` |
+| `warehouse_id` | BIGINT | FK → `warehouse.id`, NOT NULL | 🆕 Changed from `location` (VARCHAR) to FK |
+| `qty` | INTEGER | DEFAULT 0, CHECK >= 0 | ✏️ Số lượng tồn kho |
+| `outbound` | INTEGER | DEFAULT 0, CHECK >= 0 | ✏️ Số lượng đã xuất/chuyển |
+| `inbound` | INTEGER | DEFAULT 0, CHECK >= 0 | ✏️ Số lượng sắp về/dự kiến về |
 | `name_product` | VARCHAR(500) | NOT NULL | 📊 Denormalized from `product.name` for performance |
-| `updated_by_id` | BIGINT | FK → `staff.id` | ✏️ Renamed from `user` |
+| `updated_by_id` | BIGINT | FK → `staff.id`, NULL | ✏️ Renamed from `user` |
 | `time_group_sku` | TIMESTAMP WITH TIME ZONE | DEFAULT CURRENT_TIMESTAMP | ✏️ Group SKU giống nhau theo thời gian để render |
 | `created_at` | TIMESTAMP WITH TIME ZONE | NOT NULL DEFAULT CURRENT_TIMESTAMP | ✏️ Renamed from `date_created` |
 | `updated_at` | TIMESTAMP WITH TIME ZONE | NOT NULL DEFAULT CURRENT_TIMESTAMP | ✏️ Renamed from `last_update` |
+| UNIQUE(`product_sku`, `warehouse_id`) | | | Một sản phẩm chỉ có 1 record cho mỗi warehouse |
 
 **Foreign Keys:**
-- `updated_by_id` → `staff(id)`
+- `warehouse_id` → `warehouse(id)` ON DELETE CASCADE
+- `updated_by_id` → `staff(id)` ON DELETE SET NULL
 
 **Indexes:**
 - `idx_stock_product_sku` (on `product_sku`)
+- `idx_stock_warehouse` (on `warehouse_id`)
+- `idx_stock_product_sku_warehouse` (on `product_sku`, `warehouse_id`) - UNIQUE constraint
 - `idx_stock_time_group_sku` (on `time_group_sku`)
 
-**Design Changes:**
-- 🔄 **Normalized from 2 rows to 1 row**: Previously each product had 2 rows (one per location: VN/US). Now consolidated into 1 row with separate columns for each location.
-- **Benefits**: 
-  - 50% fewer rows (1 row per product instead of 2)
-  - Faster total quantity queries (no GROUP BY needed)
-  - Better data integrity (guaranteed both locations exist)
-  - Simpler updates (direct column updates)
-- **Trade-offs**: 
-  - Less flexible if more locations needed in future (would require schema changes)
-  - More columns per row (6 quantity-related columns: quantity_vn, quantity_us, outbound_vn, outbound_us, inbound_vn, inbound_us)
+**Design Notes:**
+- **Warehouse-based rows**: Mỗi sản phẩm có thể có nhiều rows (một row cho mỗi warehouse)
+- **Field mapping từ schema cũ**:
+  - `sku_product` → `product_sku`
+  - `location` → `warehouse_id` (đổi từ VARCHAR sang FK)
+  - `qty` → `qty` (giữ nguyên tên)
+  - `stock_out` → `outbound` (đổi tên)
+  - `coming_stock` → `inbound` (đổi tên)
+  - `name_product` → `name_product` (giữ nguyên tên)
+  - `user` → `updated_by_id` (FK to staff)
+  - `date_created` → `created_at`
+  - `last_update` → `updated_at`
+  - `time_group_sku` → `time_group_sku` (giữ nguyên)
+- **Total quantity**: Có thể tính tổng bằng: `SELECT SUM(qty) FROM stock WHERE product_sku = 'SKU-001'`
+- **Warehouse relationship**: Now uses proper FK relationship instead of string matching
 
 **Note**: 
-- `product_sku` is soft FK to `product.sku` (string match) and has UNIQUE constraint (1 row per product)
+- `product_sku` is soft FK to `product.sku` (string match)
+- `warehouse_id` is FK to `warehouse.id` for proper referential integrity
 - `name_product` is denormalized from `product.name` for faster queries and historical data preservation
-- Total quantity can be calculated as: `quantity_vn + quantity_us`
+- UNIQUE constraint on (`product_sku`, `warehouse_id`) ensures one record per product per warehouse
 
 ---
 
@@ -702,19 +748,20 @@ There are three product types:
 2. **category** - Product categories (hierarchical)
 3. **product_category** - Product-category junction table (normalized)
 4. **product_tag** - Product tags junction table (normalized)
-5. **stock** - Inventory stock levels
-6. **product_attribute** - Product attribute definitions (master table)
-7. **product_attribute_value** - Product-attribute value junction table (normalized)
-8. **product_set_item** - Product set/bundle component junction table (links set products to their items)
-9. **product_variant** - Product variant junction table (links variant parent products to their variant children)
-10. **product_image** - Product images, thumbnails, and gallery (normalized from thumb_nail, name_image)
-11. **diamond** - Certified diamond specifications (optional, one-to-one with product)
-12. **gemstone** - Certified gemstone specifications (optional, one-to-one with product)
-13. **material** - Material inventory and specifications
-14. **material_attribute** - Material attribute lookup/master table (valid values for collection, stone, etc.)
-15. **material_product** - Material-product junction table (links materials to products, BOM)
-16. **promotion** - Promotions
-17. **product_review** - Product reviews and ratings
+5. **warehouse** - Warehouse/Location master data
+6. **stock** - Inventory stock levels
+7. **product_attribute** - Product attribute definitions (master table)
+8. **product_attribute_value** - Product-attribute value junction table (normalized)
+9. **product_set_item** - Product set/bundle component junction table (links set products to their items)
+10. **product_variant** - Product variant junction table (links variant parent products to their variant children)
+11. **product_image** - Product images, thumbnails, and gallery (normalized from thumb_nail, name_image)
+12. **diamond** - Certified diamond specifications (optional, one-to-one with product)
+13. **gemstone** - Certified gemstone specifications (optional, one-to-one with product)
+14. **material** - Material inventory and specifications
+15. **material_attribute** - Material attribute lookup/master table (valid values for collection, stone, etc.)
+16. **material_product** - Material-product junction table (links materials to products, BOM)
+17. **promotion** - Promotions
+18. **product_review** - Product reviews and ratings
 
 ### Key Features
 - **Normalization**: Comma-separated category, tag, and image fields moved to junction tables. Promotion fields (category, product, attribute) kept as pipe-separated strings for simplicity
@@ -724,7 +771,7 @@ There are three product types:
 - **Set/Bundle Products**: Support for composite products via `product_type='set'` and `product_set_item` junction table - allows products to contain multiple items with quantities
 - **Diamond/Gemstone Products**: Support for certified diamonds (`product_type='diamond'` with certificate via `diamond` table) and gemstones (`product_type='gemstone'` with certificate via `gemstone` table), and jewelry products (`product_type='jewelry'` using standard attributes via `product_attribute_value`)
 - **Materials**: Material inventory management with attributes (metal, stone, size, collection) stored directly in `material` table, lookup values in `material_attribute` table for data consistency and UI dropdowns, and BOM tracking via `material_product` junction table
-- **Stock Consolidation**: Stock table consolidated from 2 rows per product (one per location) to 1 row with separate columns for VN and US locations (`quantity_vn`, `quantity_us`, `outbound_vn`, `outbound_us`, `inbound_vn`, `inbound_us`) - reduces rows by 50% and improves query performance
+- **Warehouse Management**: Warehouse master data table with proper FK relationships. Stock table uses `warehouse_id` FK instead of location strings for better referential integrity and data consistency
 - **Data Types**: All monetary values changed from `float` to `NUMERIC(12,2)`
 - **Foreign Keys**: Proper relationships with staff and promotion tables
 - **Indexes**: Optimized for common queries (SKU, product_type, status, attributes, diamond fields)
@@ -744,6 +791,10 @@ There are three product types:
 - `product_set_item.item_product_id` → `product.id`
 - `diamond.product_id` → `product.id` (optional, only for certified diamonds)
 - `gemstone.product_id` → `product.id` (optional, only for certified gemstones)
+- `warehouse.manager_id` → `staff.id`
+- `warehouse.created_by_id` → `staff.id`
+- `warehouse.updated_by_id` → `staff.id`
+- `stock.warehouse_id` → `warehouse.id`
 - `stock.updated_by_id` → `staff.id`
 - `material.updated_by_id` → `staff.id`
 - `material_product.material_id` → `material.id`
