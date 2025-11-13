@@ -32,11 +32,13 @@ This document shows the complete Product & Inventory schema structure with data 
 | `created_at` | TIMESTAMP WITH TIME ZONE | DEFAULT CURRENT_TIMESTAMP | ✏️ Renamed from `date_created` |
 | `updated_at` | TIMESTAMP WITH TIME ZONE | DEFAULT CURRENT_TIMESTAMP | ✏️ Renamed from `last_update` |
 | `created_by_id` | BIGINT | FK → `staff.id` | ✏️ Renamed from `by_user` |
+| `updated_by_id` | BIGINT | FK → `staff.id`, NULL | 🆕 Staff who last updated the product |
 | `status` | VARCHAR(50) | DEFAULT 'draft' | Product status: 'draft', 'publish', 'updated', 'do_not_import' |
 | `published_at` | TIMESTAMP WITH TIME ZONE | NULL | Date when product was published (NULL if not published yet) |
 
 **Foreign Keys:**
 - `created_by_id` → `staff(id)`
+- `updated_by_id` → `staff(id)` ON DELETE SET NULL
 - `promotion_id` → `promotion(id)` (via ALTER TABLE)
 
 **Junction Tables (Normalized):**
@@ -637,48 +639,59 @@ There are three product types:
 
 ---
 
-## Promotions
 
-#### `promotion` ✏️ (renamed from `db_promo`)
-**Status**: Promotions
+
+## Product Reviews
+
+#### `product_review` 🆕 NEW
+**Status**: Product reviews and ratings
 
 | Column | Data Type | Constraints | Notes |
 |--------|-----------|-------------|-------|
 | `id` | BIGSERIAL | PRIMARY KEY | |
-| `project_id` | INTEGER | DEFAULT NULL | Campaign/Period group ID (not FK to project table, used for grouping promotions) | ✏️ Renamed from `id_project` |
-| `project_name` | VARCHAR(100) | DEFAULT '' | Campaign/Period name (e.g., "July-2025", "Aug-2025") | ✏️ Renamed from `name_project` |
-| `name` | VARCHAR(100) | DEFAULT '' | Promotion name | ✏️ Renamed from `name_promo` |
-| `is_active` | BOOLEAN | DEFAULT FALSE | Promotion active status | ✏️ Renamed from `status` |
-| `promo_type` | INTEGER | DEFAULT 0 | Promotion type | ✏️ Renamed from `type` |
-| `amount` | INTEGER | DEFAULT NULL | Promotion discount amount/value |
-| `description` | VARCHAR(1000) | DEFAULT '' | Promotion description |
-| `text_bar` | TEXT | DEFAULT '' | Banner/notification text for promotion display |
-| `sync` | BOOLEAN | DEFAULT FALSE | Sync flag |
-| `reset` | BOOLEAN | DEFAULT FALSE | Reset flag |
-| `category` | VARCHAR(1000) | DEFAULT '' | Category IDs (pipe-separated, e.g., "23|89|7741") |
-| `not_category` | VARCHAR(1000) | DEFAULT '' | Excluded category IDs (pipe-separated) |
-| `product` | VARCHAR(1000) | DEFAULT '' | Product IDs (pipe-separated) |
-| `not_product` | VARCHAR(1000) | DEFAULT '' | Excluded product IDs (pipe-separated) |
-| `attribute` | VARCHAR(1000) | DEFAULT '' | Attribute IDs (pipe-separated) |
-| `not_attribute` | VARCHAR(1000) | DEFAULT '' | Excluded attribute IDs (pipe-separated) |
-| `start_date` | TIMESTAMP WITH TIME ZONE | DEFAULT NULL | Promotion start date | ✏️ Renamed from `date_start` |
-| `end_date` | TIMESTAMP WITH TIME ZONE | DEFAULT NULL | Promotion end date | ✏️ Renamed from `date_end` |
-| `created_at` | TIMESTAMP WITH TIME ZONE | DEFAULT CURRENT_TIMESTAMP | ✏️ Renamed from `date_created` |
-| `updated_at` | TIMESTAMP WITH TIME ZONE | DEFAULT CURRENT_TIMESTAMP | ✏️ Renamed from `date_update` |
+| `product_id` | BIGINT | FK → `product.id`, NOT NULL | |
+| `personal_key_id` | BIGINT | FK → `crm_personal_keys.id`, NULL | 🆕 Links to personal_key table (can be NULL for anonymous reviews) |
+| `rating` | INTEGER | NOT NULL, CHECK (rating >= 1 AND rating <= 5) | ⭐ Rating from 1 to 5 stars |
+| `title` | VARCHAR(500) | DEFAULT '' | Review title/headline |
+| `comment` | TEXT | DEFAULT '' | Review content/comment |
+| `status` | VARCHAR(50) | DEFAULT 'pending' | Review status: 'pending', 'approved', 'rejected', 'hidden' |
+| `helpful_count` | INTEGER | DEFAULT 0, CHECK >= 0 | 👍 Number of helpful votes |
+| `reviewer_name` | VARCHAR(200) | DEFAULT '' | Display name (can be different from customer name for privacy) |
+| `reviewer_email` | VARCHAR(300) | DEFAULT '' | Reviewer email (for anonymous reviews) |
+| `created_at` | TIMESTAMP WITH TIME ZONE | DEFAULT CURRENT_TIMESTAMP | |
+| `updated_at` | TIMESTAMP WITH TIME ZONE | DEFAULT CURRENT_TIMESTAMP | |
+| `approved_at` | TIMESTAMP WITH TIME ZONE | NULL | Date when review was approved |
+| `approved_by_id` | BIGINT | FK → `staff.id`, NULL | Staff who approved the review |
+
+**Foreign Keys:**
+- `product_id` → `product(id)` ON DELETE CASCADE
+- `personal_key_id` → `crm_personal_keys(id)` ON DELETE SET NULL
+- `approved_by_id` → `staff(id)` ON DELETE SET NULL
 
 **Indexes:**
-- `idx_promotion_project_id` (on `project_id`)
-- `idx_promotion_is_active` (on `is_active`)
-- `idx_promotion_dates` (on `start_date`, `end_date`)
-- `idx_promotion_type` (on `promo_type`)
+- `idx_product_review_product` (on `product_id`)
+- `idx_product_review_personal_key` (on `personal_key_id`)
+- `idx_product_review_status` (on `status`)
+- `idx_product_review_rating` (on `rating`)
+- `idx_product_review_created_at` (on `created_at`)
+- `idx_product_review_product_status` (on `product_id`, `status`) - For filtering approved reviews by product
+
+**Example Usage:**
+
+**Review from registered customer:**
+- Product #123, Personal Key #456
+- `product_id=123, personal_key_id=456, rating=5, title='Excellent product!', comment='Very satisfied with the quality', status='approved'`
+
+**Anonymous Review:**
+- Product #123, No personal key
+- `product_id=123, personal_key_id=NULL, rating=4, title='Good value', comment='Nice product', reviewer_name='John D.', reviewer_email='john@example.com', status='approved'`
 
 **Note**: 
-- `project_id` and `project_name` are used for grouping promotions into campaigns/periods (e.g., "July-2025", "Aug-2025")
-- Multiple promotions can share the same `project_id` to group them together
-- `project_id` is NOT a foreign key to a project table - it's just a grouping identifier
-- `category`, `product`, and `attribute` fields store pipe-separated IDs (e.g., "23|89|7741")
-- Query example: To check if category 23 is included, use `WHERE category LIKE '%|23|%' OR category LIKE '23|%' OR category LIKE '%|23' OR category = '23'`
-- Format: IDs are separated by pipe character `|` (e.g., "23|89|7741" means categories 23, 89, and 7741)
+- Each product can have multiple reviews (one-to-many relationship)
+- Reviews can be from registered customers (linked to `crm_personal_keys`) or anonymous
+- Reviews go through moderation workflow: `pending` → `approved`/`rejected`
+- `helpful_count` tracks how many users found the review helpful
+- Average rating can be calculated: `AVG(rating) WHERE product_id=X AND status='approved'`
 
 ---
 
@@ -701,6 +714,7 @@ There are three product types:
 14. **material_attribute** - Material attribute lookup/master table (valid values for collection, stone, etc.)
 15. **material_product** - Material-product junction table (links materials to products, BOM)
 16. **promotion** - Promotions
+17. **product_review** - Product reviews and ratings
 
 ### Key Features
 - **Normalization**: Comma-separated category, tag, and image fields moved to junction tables. Promotion fields (category, product, attribute) kept as pipe-separated strings for simplicity
@@ -715,9 +729,11 @@ There are three product types:
 - **Foreign Keys**: Proper relationships with staff and promotion tables
 - **Indexes**: Optimized for common queries (SKU, product_type, status, attributes, diamond fields)
 - **Promotion System**: Promotion rules with categories, products, and attributes stored as pipe-separated IDs (e.g., "23|89|7741") for simple querying without junction tables
+- **Product Reviews**: Customer reviews and ratings system with moderation workflow, helpful voting, and support for both registered customers (via `crm_personal_keys`) and anonymous reviews
 
 ### Relationships
 - `product.created_by_id` → `staff.id`
+- `product.updated_by_id` → `staff.id`
 - `product.promotion_id` → `promotion.id`
 - `product_category.product_id` → `product.id`
 - `product_category.category_id` → `category.id`
@@ -733,4 +749,7 @@ There are three product types:
 - `material_product.material_id` → `material.id`
 - `material_product.product_id` → `product.id`
 - `category.parent_id` → `category.id` (self-referencing)
+- `product_review.product_id` → `product.id`
+- `product_review.personal_key_id` → `crm_personal_keys.id`
+- `product_review.approved_by_id` → `staff.id`
 
