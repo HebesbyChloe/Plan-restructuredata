@@ -38,7 +38,7 @@ This document shows the complete Marketing Department schema structure with data
 │ status               │
 │ budget               │
 │ spent                │
-│ owner_id (FK) ───────┼──► hr_staff.id
+│ owner_id (FK) ───────┼──► sys_users.id
 │ ...                  │
 └────┬─────────────────┘
      │
@@ -113,7 +113,7 @@ This document shows the complete Marketing Department schema structure with data
 │ folder_id (FK) ──────┼──► mkt_asset_folders.id
 │ name                 │
 │ type                 │
-│ added_by_id (FK) ────┼──► hr_staff.id
+│ added_by_id (FK) ────┼──► sys_users.id
 │ ...                  │
 └──────────────────────┘
 
@@ -282,7 +282,7 @@ This document shows the complete Marketing Department schema structure with data
 | Column | Data Type | Constraints | Notes |
 |--------|-----------|-------------|-------|
 | `id` | BIGSERIAL | PRIMARY KEY | |
-| `tenant_id` | INTEGER | FK → `sys_tenants.id`, NOT NULL | 🆕 Multi-tenancy |
+| `tenant_id` | BIGINT | NOT NULL, FK → `sys_tenants(id)` | 🔗 Multi-tenancy |
 | `name` | VARCHAR(500) | NOT NULL | Campaign name/title |
 | `type` | VARCHAR(50) | NOT NULL | ✅ 'email', 'social', 'paid-ads', 'content', 'event', 'launch' |
 | `status` | VARCHAR(50) | NOT NULL DEFAULT 'planning' | ✅ 'planning', 'in-progress', 'launching', 'completed', 'draft', 'paused' |
@@ -291,7 +291,7 @@ This document shows the complete Marketing Department schema structure with data
 | `spent` | NUMERIC(12,2) | DEFAULT 0 | Amount spent |
 | `start_date` | DATE | NOT NULL | Campaign start date |
 | `end_date` | DATE | DEFAULT NULL | Campaign end date |
-| `owner_id` | INTEGER | FK → `hr_staff.id`, NOT NULL | Campaign owner |
+| `owner_id` | INTEGER | FK → `sys_users(id)`, NOT NULL | Campaign owner |
 | `priority` | VARCHAR(20) | DEFAULT 'medium' | ✅ 'high', 'medium', 'low' |
 | `progress` | INTEGER | DEFAULT 0 | ✅ CHECK (0-100) |
 | `ai_score` | INTEGER | DEFAULT NULL | ✅ CHECK (0-100) |
@@ -313,7 +313,7 @@ This document shows the complete Marketing Department schema structure with data
 
 **Foreign Keys:**
 - `tenant_id` → `sys_tenants(id)`
-- `owner_id` → `hr_staff(id)`
+- `owner_id` → `sys_users(id)`
 
 **Constraints:**
 - CHECK(`status` IN ('planning', 'in-progress', 'launching', 'completed', 'draft', 'paused'))
@@ -504,7 +504,7 @@ All campaign tasks are managed in the **`task`** table. Campaign context is stor
 | Column | Data Type | Constraints | Notes |
 |--------|-----------|-------------|-------|
 | `id` | BIGSERIAL | PRIMARY KEY | |
-| `tenant_id` | INTEGER | FK → `sys_tenants.id`, NOT NULL | 🆕 Multi-tenancy |
+| `tenant_id` | BIGINT | NOT NULL, FK → `sys_tenants(id)` | 🔗 Multi-tenancy |
 | `name` | VARCHAR(200) | NOT NULL | Promotion name |
 | `code` | VARCHAR(100) | NOT NULL | ✅ UNIQUE per tenant |
 | `type` | VARCHAR(50) | NOT NULL | ✅ 'percentage', 'fixed_amount', 'free_shipping', 'buy_x_get_y', 'buy_more_get_more' |
@@ -696,14 +696,14 @@ All campaign tasks are managed in the **`task`** table. Campaign context is stor
 | Column | Data Type | Constraints | Notes |
 |--------|-----------|-------------|-------|
 | `id` | BIGSERIAL | PRIMARY KEY | |
-| `tenant_id` | INTEGER | FK → `sys_tenants.id`, NOT NULL | 🆕 Multi-tenancy |
+| `tenant_id` | BIGINT | NOT NULL, FK → `sys_tenants(id)` | 🔗 Multi-tenancy |
 | `name` | VARCHAR(200) | NOT NULL | Folder name |
 | `description` | TEXT | DEFAULT NULL | Folder description |
 | `parent_folder_id` | BIGINT | FK → `mkt_asset_folders.id`, DEFAULT NULL | Self-referential |
 | `item_count` | INTEGER | DEFAULT 0 | Number of items in folder |
 | `color` | VARCHAR(20) | DEFAULT NULL | Folder color (hex) |
 | `last_modified` | TIMESTAMPTZ | DEFAULT CURRENT_TIMESTAMP | |
-| `modified_by` | INTEGER | FK → `hr_staff.id`, DEFAULT NULL | ✏️ Changed from staff.id |
+| `modified_by` | BIGINT | NULL, FK → `sys_users(id)`, DEFAULT NULL | 🔗 User who last modified |
 | `ai_optimized` | BOOLEAN | DEFAULT FALSE | AI optimization flag |
 | `tags` | TEXT[] | DEFAULT '{}' | 📊 Array of tags |
 | `created_at` | TIMESTAMPTZ | DEFAULT CURRENT_TIMESTAMP | |
@@ -713,7 +713,7 @@ All campaign tasks are managed in the **`task`** table. Campaign context is stor
 **Foreign Keys:**
 - `tenant_id` → `sys_tenants(id)`
 - `parent_folder_id` → `mkt_asset_folders(id)` ON DELETE SET NULL
-- `modified_by` → `hr_staff(id)` ON DELETE SET NULL
+- `modified_by` → `sys_users(id)` ON DELETE SET NULL
 
 **Indexes:**
 - `idx_mkt_asset_folders_tenant_id` (tenant_id)
@@ -729,7 +729,7 @@ All campaign tasks are managed in the **`task`** table. Campaign context is stor
 | Column | Data Type | Constraints | Notes |
 |--------|-----------|-------------|-------|
 | `id` | BIGSERIAL | PRIMARY KEY | |
-| `tenant_id` | INTEGER | FK → `sys_tenants.id`, NOT NULL | 🆕 Multi-tenancy |
+| `tenant_id` | BIGINT | NOT NULL, FK → `sys_tenants(id)` | 🔗 Multi-tenancy |
 | `name` | VARCHAR(500) | NOT NULL | Asset name |
 | `type` | VARCHAR(50) | NOT NULL | ✅ 'image', 'video', 'document', 'template', 'graphic' |
 | `category` | VARCHAR(200) | DEFAULT NULL | Asset category |
@@ -740,7 +740,7 @@ All campaign tasks are managed in the **`task`** table. Campaign context is stor
 | `thumbnail_url` | VARCHAR(1000) | DEFAULT NULL | Thumbnail URL |
 | `folder_id` | BIGINT | FK → `mkt_asset_folders.id`, DEFAULT NULL | |
 | `date_added` | DATE | DEFAULT CURRENT_DATE | |
-| `added_by` | INTEGER | FK → `hr_staff.id`, DEFAULT NULL | ✏️ Changed from staff.id |
+| `added_by` | BIGINT | NULL, FK → `sys_users(id)`, DEFAULT NULL | 🔗 User who added |
 | `usage_count` | INTEGER | DEFAULT 0 | Number of times used |
 | `ai_score` | INTEGER | DEFAULT NULL | ✅ CHECK (0-100) |
 | `tags` | TEXT[] | DEFAULT '{}' | 📊 Array of tags |
@@ -751,7 +751,7 @@ All campaign tasks are managed in the **`task`** table. Campaign context is stor
 **Foreign Keys:**
 - `tenant_id` → `sys_tenants(id)`
 - `folder_id` → `mkt_asset_folders(id)` ON DELETE SET NULL
-- `added_by` → `hr_staff(id)` ON DELETE SET NULL
+- `added_by` → `sys_users(id)` ON DELETE SET NULL
 
 **Indexes:**
 - `idx_mkt_marketing_assets_tenant_id` (tenant_id)
@@ -797,7 +797,7 @@ All campaign tasks are managed in the **`task`** table. Campaign context is stor
 | Column | Data Type | Constraints | Notes |
 |--------|-----------|-------------|-------|
 | `id` | BIGSERIAL | PRIMARY KEY | |
-| `tenant_id` | INTEGER | FK → `sys_tenants.id`, NOT NULL | 🆕 Multi-tenancy |
+| `tenant_id` | BIGINT | NOT NULL, FK → `sys_tenants(id)` | 🔗 Multi-tenancy |
 | `name` | VARCHAR(200) | NOT NULL | Color name |
 | `hex` | VARCHAR(20) | NOT NULL | Hex color code |
 | `category` | VARCHAR(50) | NOT NULL | ✅ 'primary', 'secondary', 'neutral' |
@@ -822,7 +822,7 @@ All campaign tasks are managed in the **`task`** table. Campaign context is stor
 | Column | Data Type | Constraints | Notes |
 |--------|-----------|-------------|-------|
 | `id` | BIGSERIAL | PRIMARY KEY | |
-| `tenant_id` | INTEGER | FK → `sys_tenants.id`, NOT NULL | 🆕 Multi-tenancy |
+| `tenant_id` | BIGINT | NOT NULL, FK → `sys_tenants(id)` | 🔗 Multi-tenancy |
 | `name` | VARCHAR(200) | NOT NULL | Typography name |
 | `size` | VARCHAR(50) | NOT NULL | Font size (e.g., "48px") |
 | `weight` | VARCHAR(50) | NOT NULL | Font weight (e.g., "600") |
@@ -849,7 +849,7 @@ All campaign tasks are managed in the **`task`** table. Campaign context is stor
 | Column | Data Type | Constraints | Notes |
 |--------|-----------|-------------|-------|
 | `id` | BIGSERIAL | PRIMARY KEY | |
-| `tenant_id` | INTEGER | FK → `sys_tenants.id`, NOT NULL | 🆕 Multi-tenancy |
+| `tenant_id` | BIGINT | NOT NULL, FK → `sys_tenants(id)` | 🔗 Multi-tenancy |
 | `name` | VARCHAR(200) | NOT NULL | Logo name |
 | `variation_type` | VARCHAR(50) | NOT NULL | ✅ 'primary', 'dark', 'icon_only', 'monochrome' |
 | `logo_url` | VARCHAR(1000) | NOT NULL | Logo URL |
@@ -877,7 +877,7 @@ All campaign tasks are managed in the **`task`** table. Campaign context is stor
 | Column | Data Type | Constraints | Notes |
 |--------|-----------|-------------|-------|
 | `id` | BIGSERIAL | PRIMARY KEY | |
-| `tenant_id` | INTEGER | FK → `sys_tenants.id`, NOT NULL | 🆕 Multi-tenancy |
+| `tenant_id` | BIGINT | NOT NULL, FK → `sys_tenants(id)` | 🔗 Multi-tenancy |
 | `title` | VARCHAR(200) | NOT NULL | Guideline title |
 | `category` | VARCHAR(50) | NOT NULL | ✅ 'logo_usage', 'typography_rules', 'color_application', 'voice_tone' |
 | `items` | JSONB | DEFAULT '[]' | 📊 Array of guideline items (stored as JSON) |
@@ -905,7 +905,7 @@ All campaign tasks are managed in the **`task`** table. Campaign context is stor
 | Column | Data Type | Constraints | Notes |
 |--------|-----------|-------------|-------|
 | `id` | BIGSERIAL | PRIMARY KEY | |
-| `tenant_id` | INTEGER | FK → `sys_tenants.id`, NOT NULL | 🆕 Multi-tenancy |
+| `tenant_id` | BIGINT | NOT NULL, FK → `sys_tenants(id)` | 🔗 Multi-tenancy |
 | `name` | VARCHAR(200) | NOT NULL | Affiliate name |
 | `type` | VARCHAR(50) | NOT NULL | ✅ 'Affiliate', 'KOL', 'Influencer' |
 | `email` | VARCHAR(200) | NOT NULL | Contact email |
@@ -935,7 +935,7 @@ All campaign tasks are managed in the **`task`** table. Campaign context is stor
 | Column | Data Type | Constraints | Notes |
 |--------|-----------|-------------|-------|
 | `id` | BIGSERIAL | PRIMARY KEY | |
-| `tenant_id` | INTEGER | FK → `sys_tenants.id`, NOT NULL | 🆕 Multi-tenancy |
+| `tenant_id` | BIGINT | NOT NULL, FK → `sys_tenants(id)` | 🔗 Multi-tenancy |
 | `name` | VARCHAR(200) | NOT NULL | Link name |
 | `url` | TEXT | NOT NULL | Full URL with UTM parameters |
 | `short_url` | VARCHAR(200) | NOT NULL | Shortened URL |
@@ -965,7 +965,7 @@ All campaign tasks are managed in the **`task`** table. Campaign context is stor
 | Column | Data Type | Constraints | Notes |
 |--------|-----------|-------------|-------|
 | `id` | BIGSERIAL | PRIMARY KEY | |
-| `tenant_id` | INTEGER | FK → `sys_tenants.id`, NOT NULL | 🆕 Multi-tenancy |
+| `tenant_id` | BIGINT | NOT NULL, FK → `sys_tenants(id)` | 🔗 Multi-tenancy |
 | `title` | VARCHAR(500) | NOT NULL | Document title |
 | `category` | VARCHAR(200) | NOT NULL | Document category |
 | `description` | TEXT | DEFAULT NULL | Document description |
@@ -991,7 +991,7 @@ All campaign tasks are managed in the **`task`** table. Campaign context is stor
 | Column | Data Type | Constraints | Notes |
 |--------|-----------|-------------|-------|
 | `id` | BIGSERIAL | PRIMARY KEY | |
-| `tenant_id` | INTEGER | FK → `sys_tenants.id`, NOT NULL | 🆕 Multi-tenancy |
+| `tenant_id` | BIGINT | NOT NULL, FK → `sys_tenants(id)` | 🔗 Multi-tenancy |
 | `name` | VARCHAR(200) | NOT NULL | Channel name |
 | `type` | VARCHAR(200) | NOT NULL | Channel type |
 | `platform` | VARCHAR(200) | NOT NULL | Platform name |
@@ -1101,7 +1101,7 @@ All campaign tasks are managed in the **`task`** table. Campaign context is stor
 
 ### Key Features
 - **Multi-tenancy**: All tables include `tenant_id` for data isolation
-- **Staff Integration**: All staff references use `hr_staff.id`
+- **Staff Integration**: All staff references use `sys_users.id`
 - **Normalization**: Junction tables for many-to-many relationships
 - **Soft Deletes**: `deleted_at` fields for main entities
 - **Tags System**: Campaigns and assets use tags array
@@ -1116,7 +1116,7 @@ All campaign tasks are managed in the **`task`** table. Campaign context is stor
 
 ### Relationships
 - All tables → `sys_tenants.id` (multi-tenancy)
-- Staff references → `hr_staff.id`
+- Staff references → `sys_users.id`
 - Campaigns → `mkt_campaign_*` related tables
 - Promotions → Multiple junction tables for products/categories/attributes
 - Assets → `mkt_asset_folders` (hierarchical)

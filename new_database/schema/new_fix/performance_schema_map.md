@@ -85,20 +85,20 @@ This document shows the complete Performance Management schema structure with da
 |--------|-----------|-------------|-------|
 | `id` | BIGSERIAL | PRIMARY KEY | |
 | `tenant_id` | BIGINT | NOT NULL | 🆕 Multi-tenancy support |
-| `staff_id` | BIGINT | FK → `staff.id`, NOT NULL | ⭐ Staff being evaluated |
-| `evaluator_id` | BIGINT | FK → `staff.id`, NOT NULL | ⭐ Who evaluates |
+| `staff_id` | BIGINT | FK → `sys_users(id)`, NOT NULL | ⭐ Staff being evaluated |
+| `evaluator_id` | BIGINT | FK → `sys_users(id)`, NOT NULL | ⭐ Who evaluates |
 | `period_start` | DATE | NOT NULL | Evaluation period start date |
 | `period_end` | DATE | NOT NULL | Evaluation period end date |
 | `overall_score` | NUMERIC(5,2) | DEFAULT NULL | ⭐ Calculated total score (0-100) |
 | `status` | VARCHAR(50) | NOT NULL DEFAULT 'draft' | ⭐ Enum: draft, submitted, approved, rejected |
 | `notes` | TEXT | DEFAULT NULL | Overall feedback/comments |
-| `created_by_id` | BIGINT | FK → `staff.id`, DEFAULT NULL | ⭐ Who created the evaluation |
+| `created_by_id` | BIGINT | FK → `sys_users(id)`, DEFAULT NULL | ⭐ Who created the evaluation |
 | `created_at` | TIMESTAMP WITH TIME ZONE | DEFAULT CURRENT_TIMESTAMP | |
 | `updated_at` | TIMESTAMP WITH TIME ZONE | DEFAULT CURRENT_TIMESTAMP | ⭐ Last update timestamp |
 | `submitted_at` | TIMESTAMP WITH TIME ZONE | DEFAULT NULL | ⭐ When submitted for approval |
-| `approved_by_id` | BIGINT | FK → `staff.id`, DEFAULT NULL | ⭐ Who approved |
+| `approved_by_id` | BIGINT | FK → `sys_users(id)`, DEFAULT NULL | ⭐ Who approved |
 | `approved_at` | TIMESTAMP WITH TIME ZONE | DEFAULT NULL | ⭐ When approved |
-| `rejected_by_id` | BIGINT | FK → `staff.id`, DEFAULT NULL | ⭐ Who rejected |
+| `rejected_by_id` | BIGINT | FK → `sys_users(id)`, DEFAULT NULL | ⭐ Who rejected |
 | `rejected_at` | TIMESTAMP WITH TIME ZONE | DEFAULT NULL | ⭐ When rejected |
 | `rejection_reason` | TEXT | DEFAULT NULL | ⭐ Reason for rejection |
 
@@ -117,11 +117,11 @@ This document shows the complete Performance Management schema structure with da
 - CHECK((`status` = 'rejected' AND `rejected_by_id` IS NOT NULL) OR (`status` != 'rejected')) - Rejected must have rejector
 
 **Foreign Keys:**
-- `staff_id` → `staff(id)` ON DELETE CASCADE
-- `evaluator_id` → `staff(id)` ON DELETE SET NULL
-- `created_by_id` → `staff(id)` ON DELETE SET NULL
-- `approved_by_id` → `staff(id)` ON DELETE SET NULL
-- `rejected_by_id` → `staff(id)` ON DELETE SET NULL
+- `staff_id` → `sys_users(id)` ON DELETE CASCADE
+- `evaluator_id` → `sys_users(id)` ON DELETE SET NULL
+- `created_by_id` → `sys_users(id)` ON DELETE SET NULL
+- `approved_by_id` → `sys_users(id)` ON DELETE SET NULL
+- `rejected_by_id` → `sys_users(id)` ON DELETE SET NULL
 
 **Indexes:**
 - `idx_performance_evaluation_tenant` (tenant_id) - 🆕 Multi-tenancy index
@@ -214,11 +214,11 @@ This document shows the complete Performance Management schema structure with da
 #### Core Relationships
 - `department` - Root table, referenced by `performance_criteria`
 - `performance_criteria.department_id` → `department(id)` ON DELETE SET NULL
-- `performance_evaluation.staff_id` → `staff(id)` ON DELETE CASCADE
-- `performance_evaluation.evaluator_id` → `staff(id)` ON DELETE SET NULL
-- `performance_evaluation.created_by_id` → `staff(id)` ON DELETE SET NULL
-- `performance_evaluation.approved_by_id` → `staff(id)` ON DELETE SET NULL
-- `performance_evaluation.rejected_by_id` → `staff(id)` ON DELETE SET NULL
+- `performance_evaluation.staff_id` → `sys_users(id)` ON DELETE CASCADE
+- `performance_evaluation.evaluator_id` → `sys_users(id)` ON DELETE SET NULL
+- `performance_evaluation.created_by_id` → `sys_users(id)` ON DELETE SET NULL
+- `performance_evaluation.approved_by_id` → `sys_users(id)` ON DELETE SET NULL
+- `performance_evaluation.rejected_by_id` → `sys_users(id)` ON DELETE SET NULL
 - `performance_score.evaluation_id` → `performance_evaluation(id)` ON DELETE CASCADE
 - `performance_score.criteria_id` → `performance_criteria(id)` ON DELETE RESTRICT
 
@@ -269,11 +269,11 @@ This document shows the complete Performance Management schema structure with da
 │──────────────────────│                                    │──────────────────────│
 │ PK  id               │                                    │ PK  id               │
 │     tenant_id        │                                    │     tenant_id        │
-│ UK  code             │ (UNIQUE per tenant)                │ FK  staff_id ────────┼───► staff.id (CASCADE)
-│     name             │                                    │ FK  evaluator_id ────┼───► staff.id (SET NULL)
-│     is_active        │                                    │ FK  created_by_id ────┼───► staff.id (SET NULL)
-└──────────────────────┘                                    │ FK  approved_by_id ───┼───► staff.id (SET NULL)
-         │                                                  │ FK  rejected_by_id ───┼───► staff.id (SET NULL)
+│ UK  code             │ (UNIQUE per tenant)                │ FK  staff_id ────────┼───► sys_users.id (CASCADE)
+│     name             │                                    │ FK  evaluator_id ────┼───► sys_users.id (SET NULL)
+│     is_active        │                                    │ FK  created_by_id ────┼───► sys_users.id (SET NULL)
+└──────────────────────┘                                    │ FK  approved_by_id ───┼───► sys_users.id (SET NULL)
+         │                                                  │ FK  rejected_by_id ───┼───► sys_users.id (SET NULL)
          │ N:1                                             │     period_start      │
          │                                                  │     period_end        │
          │                                                  │     overall_score     │

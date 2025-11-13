@@ -143,13 +143,13 @@ This document provides a complete skeleton map and detailed listing of the alert
 | `entity_type` | VARCHAR | NOT NULL | Type of entity (e.g., 'order', 'product', 'customer', 'shipment') |
 | `entity_id` | BIGINT | NOT NULL | ID of the affected entity |
 | `content` | TEXT | NOT NULL | Note content/text |
-| `created_by` | BIGINT | NULL, FK → `hr_staff(id)` | 🔗 Staff member who created the note |
+| `created_by` | BIGINT | NULL, FK → `sys_users(id)` | 🔗 Staff member who created the note |
 | `created_at` | TIMESTAMPTZ | NOT NULL, DEFAULT now() | ⏰ Note creation timestamp |
-| `tenant_id` | INTEGER | NULL | Multi-tenant support (optional) |
+| `tenant_id` | BIGINT | NULL, FK → `sys_tenants(id)` | 🔗 Multi-tenant support (optional) |
 | `updated_at` | TIMESTAMPTZ | NOT NULL, DEFAULT now() | ⏰ Last update timestamp |
 
 **Foreign Keys:**
-- `created_by` → `public.hr_staff(id)` (Constraint: `notes_created_by_fkey`)
+- `created_by` → `public.sys_users(id)` (Constraint: `notes_created_by_fkey`)
 
 **Polymorphic Relationship:**
 - Uses `entity_type` + `entity_id` to reference any entity in the system
@@ -426,12 +426,12 @@ ORDER BY n.updated_at DESC;
 ## Potential Enhancements
 
 ### For `alerts` table:
-- Add `resolved_by` (BIGINT, FK → `hr_staff.id`) - track who resolved
+- Add `resolved_by` (BIGINT, FK → `sys_users.id`) - track who resolved
 - Add `resolution_notes` (TEXT) - context for resolution
 - Add `priority` (INTEGER) - custom priority beyond severity
 - Add `expires_at` (TIMESTAMPTZ) - auto-expire alerts
 - Add `notification_sent` (BOOLEAN) - track notification delivery
-- Add `tenant_id` (INTEGER) - multi-tenant support
+- Add `tenant_id` (BIGINT, FK → `sys_tenants(id)`) - multi-tenant support
 
 ### For `notes` table:
 - Add `is_private` (BOOLEAN) - private/internal notes flag

@@ -38,7 +38,7 @@ This document defines the schema for marketing campaigns with integration to the
 │ status               │
 │ budget               │
 │ spent                │
-│ owner_id (FK) ───────┼──► hr_staff.id
+│ owner_id (FK) ───────┼──► sys_users.id
 │ ...                  │
 └────┬─────────────────┘
      │
@@ -62,7 +62,7 @@ This document defines the schema for marketing campaigns with integration to the
 | Column | Data Type | Constraints | Notes |
 |--------|-----------|-------------|-------|
 | `id` | BIGSERIAL | PRIMARY KEY | |
-| `tenant_id` | INTEGER | FK → `sys_tenants.id`, NOT NULL | 🆕 Multi-tenancy |
+| `tenant_id` | BIGINT | NOT NULL, FK → `sys_tenants(id)` | 🔗 Multi-tenancy |
 | `name` | VARCHAR(500) | NOT NULL | Campaign name/title |
 | `type` | VARCHAR(50) | NOT NULL | ✅ 'email', 'social', 'paid-ads', 'content', 'event', 'launch' |
 | `status` | VARCHAR(50) | NOT NULL DEFAULT 'planning' | ✅ 'planning', 'in-progress', 'launching', 'completed', 'draft', 'paused' |
@@ -71,7 +71,7 @@ This document defines the schema for marketing campaigns with integration to the
 | `spent` | NUMERIC(12,2) | DEFAULT 0 | Amount spent |
 | `start_date` | DATE | NOT NULL | Campaign start date |
 | `end_date` | DATE | DEFAULT NULL | Campaign end date |
-| `owner_id` | INTEGER | FK → `hr_staff.id`, NOT NULL | Campaign owner |
+| `owner_id` | INTEGER | FK → `sys_users(id)`, NOT NULL | Campaign owner |
 | `priority` | VARCHAR(20) | DEFAULT 'medium' | ✅ 'high', 'medium', 'low' |
 | `progress` | INTEGER | DEFAULT 0 | ✅ CHECK (0-100) |
 | `ai_score` | INTEGER | DEFAULT NULL | ✅ CHECK (0-100) |
@@ -93,7 +93,7 @@ This document defines the schema for marketing campaigns with integration to the
 
 **Foreign Keys:**
 - `tenant_id` → `sys_tenants(id)`
-- `owner_id` → `hr_staff(id)`
+- `owner_id` → `sys_users(id)`
 
 **Constraints:**
 - CHECK(`status` IN ('planning', 'in-progress', 'launching', 'completed', 'draft', 'paused'))

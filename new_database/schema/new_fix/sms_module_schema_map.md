@@ -55,7 +55,7 @@ This document provides a complete skeleton map and detailed listing of all SMS-r
          │
          ├─── N:1 ────► SMS_sender_accounts (sender_account_id)
          ├─── N:1 ────► mkt_campaigns (linked_campaign_id)
-         ├─── N:1 ────► project_projects (linked_project_id)
+         ├─── N:1 ────► project (linked_project_id)
          └─── 1:N ────► SMS_messages (service_account_id)
 
 
@@ -117,7 +117,7 @@ This document provides a complete skeleton map and detailed listing of all SMS-r
 └─────────────────────────────────────────────────────────────────┘
          │
          ├─── N:1 ────► crm_customers (customer_id_crm)
-         ├─── N:1 ────► hr_staff (assigned_staff_id)
+         ├─── N:1 ────► sys_users (assigned_staff_id)
          └─── 1:N ────► SMS_messages (via conversation_id, logical link)
 
 
@@ -126,7 +126,7 @@ This document provides a complete skeleton map and detailed listing of all SMS-r
 │  ────────────────────────────────────────────────────────────  │
 │  • mkt_campaigns        - Marketing campaigns                   │
 │    └── Referenced by: SMS_service_accounts.linked_campaign_id  │
-│  • project_projects     - Project management                    │
+│  • project               - Project management                    │
 │    └── Referenced by: SMS_service_accounts.linked_project_id    │
 │  • crm_customers        - Customer records                      │
 │    └── Referenced by: SMS_meta_conversation.customer_id_crm     │
@@ -143,7 +143,7 @@ Provider Account Hierarchy:
 
 Service Layer:
   SMS_service_accounts N──1 mkt_campaigns (optional)
-  SMS_service_accounts N──1 project_projects (optional)
+  SMS_service_accounts N──1 project (optional)
 
 Message Flow:
   SMS_sender_phone_numbers 1──N SMS_messages
@@ -154,7 +154,7 @@ Message Flow:
 Conversation Management:
   SMS_meta_conversation 1──N SMS_messages (via conversation_id, logical)
   SMS_meta_conversation N──1 crm_customers
-  SMS_meta_conversation N──1 hr_staff
+  SMS_meta_conversation N──1 sys_users
 
 Contact Management:
   SMS_contacts (logical link via phone number to SMS_messages)
@@ -235,8 +235,8 @@ Contact Management:
 | `provider_service_sid` | VARCHAR | NULL | Provider service SID (e.g., Twilio MessagingServiceSid) |
 | `settings` | JSONB | NULL | Flexible settings storage |
 | `is_active` | BOOLEAN | NOT NULL, DEFAULT true | Active status |
-| `linked_campaign_id` | INTEGER | NULL, FK → `mkt_campaigns(id)` | 🔗 Linked marketing campaign |
-| `linked_project_id` | INTEGER | NULL, FK → `project_projects(id)` | 🔗 Linked project |
+| `linked_campaign_id` | BIGINT | NULL, FK → `mkt_campaigns(id)` | 🔗 Linked marketing campaign |
+| `linked_project_id` | BIGINT | NULL, FK → `project(id)` | 🔗 Linked project |
 | `description` | TEXT | NULL | Service description |
 | `created_at` | TIMESTAMPTZ | NOT NULL, DEFAULT now() | ⏰ Creation timestamp |
 | `updated_at` | TIMESTAMPTZ | NOT NULL, DEFAULT now() | ⏰ Last update timestamp |
@@ -244,7 +244,7 @@ Contact Management:
 **Foreign Keys:**
 - `sender_account_id` → `SMS_sender_accounts(id)`
 - `linked_campaign_id` → `mkt_campaigns(id)` (optional)
-- `linked_project_id` → `project_projects(id)` (optional)
+- `linked_project_id` → `project(id)` (optional)
 
 **Indexes:**
 - `idx_sms_service_accounts_sender_account(sender_account_id)` - Account lookup 📊
@@ -419,7 +419,7 @@ Contact Management:
 | `id` | UUID | PRIMARY KEY, DEFAULT gen_random_uuid() | Conversation identifier |
 | `conversation_id` | VARCHAR | NOT NULL, UNIQUE | 🔒 Conversation ID (matches SMS_messages.conversation_id) |
 | `customer_id_crm` | INTEGER | NULL, FK → `crm_customers(id)` | 🔗 CRM customer |
-| `assigned_staff_id` | INTEGER | NULL, FK → `hr_staff(id)` | 🔗 Assigned staff member |
+| `assigned_staff_id` | INTEGER | NULL, FK → `sys_users(id)` | 🔗 Assigned staff member |
 | `status` | VARCHAR | NOT NULL, DEFAULT 'active' | Conversation status |
 | `priority` | VARCHAR | NOT NULL, DEFAULT 'medium' | Priority level |
 | `tags` | TEXT[] | NULL | Conversation tags |
@@ -444,7 +444,7 @@ Contact Management:
 
 **Foreign Keys:**
 - `customer_id_crm` → `crm_customers(id)`
-- `assigned_staff_id` → `hr_staff(id)`
+- `assigned_staff_id` → `sys_users(id)`
 
 **Unique Constraints:**
 - `conversation_id` (one meta record per conversation)
@@ -486,9 +486,9 @@ Contact Management:
    - Service accounts can be linked to marketing campaigns
    - `SMS_service_accounts.linked_campaign_id` → `mkt_campaigns.id`
 
-4. **`SMS_service_accounts` → `project_projects`** (Many-to-One, Optional)
+4. **`SMS_service_accounts` → `project`** (Many-to-One, Optional)
    - Service accounts can be linked to projects
-   - `SMS_service_accounts.linked_project_id` → `project_projects.id`
+    - `SMS_service_accounts.linked_project_id` → `project.id`
 
 ### Message Flow
 
@@ -519,9 +519,9 @@ Contact Management:
     - Conversations can be linked to CRM customers
     - `SMS_meta_conversation.customer_id_crm` → `crm_customers.id`
 
-11. **`SMS_meta_conversation` → `hr_staff`** (Many-to-One)
+11. **`SMS_meta_conversation` → `sys_users`** (Many-to-One)
     - Conversations can be assigned to staff
-    - `SMS_meta_conversation.assigned_staff_id` → `hr_staff.id`
+    - `SMS_meta_conversation.assigned_staff_id` → `sys_users.id`
 
 ### Contact Management
 

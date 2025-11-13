@@ -25,13 +25,13 @@ This document shows the complete Tasks & Projects schema structure with data typ
 | `title` | VARCHAR(400) | NOT NULL DEFAULT '' | |
 | `description` | TEXT | DEFAULT NULL | ⭐ Project description |
 | `code` | VARCHAR(50) | NOT NULL | ⭐ Project code/identifier (e.g., PROJ-001) |
-| `owner_id` | BIGINT | FK → `staff.id`, NOT NULL DEFAULT 0 | ✏️ Renamed from `owner_project_id` |
+| `owner_id` | BIGINT | FK → `sys_users(id)`, NOT NULL DEFAULT 0 | ✏️ Renamed from `owner_project_id` |
 | `status` | VARCHAR(50) | NOT NULL DEFAULT 'active' | ⭐ Enum: active, on_hold, completed, archived |
 | `visibility` | VARCHAR(50) | NOT NULL DEFAULT 'private' | ⭐ Enum: private, team, public |
 | `start_date` | TIMESTAMP WITH TIME ZONE | DEFAULT NULL | ✏️ Renamed from `start_time` |
 | `end_date` | TIMESTAMP WITH TIME ZONE | DEFAULT NULL | ✏️ Renamed from `end_time` |
 | `is_continuous` | BOOLEAN | NOT NULL DEFAULT FALSE | |
-| `created_by_id` | BIGINT | FK → `staff.id`, NOT NULL DEFAULT 0 | ⭐ Who created the project |
+| `created_by_id` | BIGINT | FK → `sys_users(id)`, NOT NULL DEFAULT 0 | ⭐ Who created the project |
 | `created_at` | TIMESTAMP WITH TIME ZONE | DEFAULT CURRENT_TIMESTAMP | ✏️ Renamed from `date_created` |
 | `updated_at` | TIMESTAMP WITH TIME ZONE | DEFAULT CURRENT_TIMESTAMP | ⭐ Last update timestamp |
 | `completed_at` | TIMESTAMP WITH TIME ZONE | DEFAULT NULL | ✏️ Renamed from `date_completed` |
@@ -44,8 +44,8 @@ This document shows the complete Tasks & Projects schema structure with data typ
 - CHECK(`visibility` IN ('private', 'team', 'public')) - Validate visibility enum
 
 **Foreign Keys:**
-- `owner_id` → `staff(id)` ON DELETE SET DEFAULT
-- `created_by_id` → `staff(id)` ON DELETE SET DEFAULT
+- `owner_id` → `sys_users(id)` ON DELETE SET DEFAULT
+- `created_by_id` → `sys_users(id)` ON DELETE SET DEFAULT
 
 **Indexes:**
 - `idx_project_tenant` (tenant_id) - 🆕 Multi-tenancy index
@@ -104,9 +104,9 @@ This document shows the complete Tasks & Projects schema structure with data typ
 | `task_type` | VARCHAR(50) | NOT NULL DEFAULT 'task' | ⭐ Enum: task, bug, feature, epic, story |
 | `status` | VARCHAR(50) | NOT NULL DEFAULT 'todo' | ⭐ Enum: todo, in_progress, in_review, done, cancelled |
 | `priority` | VARCHAR(20) | NOT NULL DEFAULT 'medium' | ⭐ Enum: low, medium, high, critical |
-| `assignee_id` | BIGINT | FK → `staff.id`, DEFAULT NULL | ✏️ Renamed from `id_assignee`, nullable |
-| `assigned_by_id` | BIGINT | FK → `staff.id`, DEFAULT NULL | ✏️ Renamed from `assignee_by` |
-| `created_by_id` | BIGINT | FK → `staff.id`, NOT NULL DEFAULT 0 | ⭐ Who created the task |
+| `assignee_id` | BIGINT | FK → `sys_users(id)`, DEFAULT NULL | ✏️ Renamed from `id_assignee`, nullable |
+| `assigned_by_id` | BIGINT | FK → `sys_users(id)`, DEFAULT NULL | ✏️ Renamed from `assignee_by` |
+| `created_by_id` | BIGINT | FK → `sys_users(id)`, NOT NULL DEFAULT 0 | ⭐ Who created the task |
 | `start_date` | TIMESTAMP WITH TIME ZONE | DEFAULT NULL | ⭐ When work should start |
 | `due_date` | TIMESTAMP WITH TIME ZONE | DEFAULT NULL | ✏️ Renamed from `deadline` |
 | `original_due_date` | TIMESTAMP WITH TIME ZONE | DEFAULT NULL | ✏️ Renamed from `original_deadline` |
@@ -116,7 +116,7 @@ This document shows the complete Tasks & Projects schema structure with data typ
 | `metadata` | JSONB | DEFAULT NULL | ⭐ Flexible metadata (order_id, customer_id, etc.) |
 | `recurring_task_id` | BIGINT | FK → `recurring_task.id`, DEFAULT NULL | ⭐ Link to recurring template |
 | `repeat_key` | VARCHAR(100) | NOT NULL DEFAULT '' | ✏️ Renamed from `key_repeat` |
-| `reviewed_by_id` | BIGINT | FK → `staff.id`, DEFAULT NULL | ✏️ Renamed from `review_by` |
+| `reviewed_by_id` | BIGINT | FK → `sys_users(id)`, DEFAULT NULL | ✏️ Renamed from `review_by` |
 | `created_at` | TIMESTAMP WITH TIME ZONE | NOT NULL DEFAULT CURRENT_TIMESTAMP | ✏️ Renamed from `date_created` |
 | `updated_at` | TIMESTAMP WITH TIME ZONE | DEFAULT CURRENT_TIMESTAMP | ✏️ Renamed from `date_updated` |
 | `started_at` | TIMESTAMP WITH TIME ZONE | DEFAULT NULL | ⭐ When work actually started |
@@ -137,11 +137,11 @@ This document shows the complete Tasks & Projects schema structure with data typ
 - `parent_task_id` → `task(id)` ON DELETE SET NULL
 - `project_id` → `project(id)` ON DELETE SET DEFAULT
 - `milestone_id` → `milestone(id)` ON DELETE SET NULL
-- `assignee_id` → `staff(id)` ON DELETE SET NULL
-- `assigned_by_id` → `staff(id)` ON DELETE SET NULL
-- `created_by_id` → `staff(id)` ON DELETE SET DEFAULT
+- `assignee_id` → `sys_users(id)` ON DELETE SET NULL
+- `assigned_by_id` → `sys_users(id)` ON DELETE SET NULL
+- `created_by_id` → `sys_users(id)` ON DELETE SET DEFAULT
 - `recurring_task_id` → `recurring_task(id)` ON DELETE SET NULL
-- `reviewed_by_id` → `staff(id)` ON DELETE SET NULL
+- `reviewed_by_id` → `sys_users(id)` ON DELETE SET NULL
 
 **Notes:**
 - `metadata` (JSONB) can store flexible data like `order_id`, `customer_id`, or any other custom fields
@@ -176,13 +176,13 @@ This document shows the complete Tasks & Projects schema structure with data typ
 | `id` | BIGSERIAL | PRIMARY KEY | |
 | `tenant_id` | BIGINT | NOT NULL | 🆕 Multi-tenancy support |
 | `task_id` | BIGINT | FK → `task.id`, NOT NULL | |
-| `staff_id` | BIGINT | FK → `staff.id`, NOT NULL | |
+| `staff_id` | BIGINT | FK → `sys_users(id)`, NOT NULL | |
 | `created_at` | TIMESTAMP WITH TIME ZONE | DEFAULT CURRENT_TIMESTAMP | |
 | UNIQUE(`task_id`, `staff_id`) | | | |
 
 **Foreign Keys:**
 - `task_id` → `task(id)` ON DELETE CASCADE
-- `staff_id` → `staff(id)` ON DELETE CASCADE
+- `staff_id` → `sys_users(id)` ON DELETE CASCADE
 
 **Indexes:**
 - `idx_task_watcher_tenant` (tenant_id) - 🆕 Multi-tenancy index
@@ -234,7 +234,7 @@ This document shows the complete Tasks & Projects schema structure with data typ
 | `file_path` | VARCHAR(1000) | NOT NULL | ⭐ Storage path |
 | `file_type` | VARCHAR(100) | NOT NULL DEFAULT '' | |
 | `file_size` | BIGINT | NOT NULL DEFAULT 0 | ⭐ Size in bytes |
-| `uploaded_by_id` | BIGINT | FK → `staff.id`, NOT NULL | |
+| `uploaded_by_id` | BIGINT | FK → `sys_users(id)`, NOT NULL | |
 | `created_at` | TIMESTAMP WITH TIME ZONE | DEFAULT CURRENT_TIMESTAMP | |
 
 **Constraints:**
@@ -242,7 +242,7 @@ This document shows the complete Tasks & Projects schema structure with data typ
 
 **Foreign Keys:**
 - `task_id` → `task(id)` ON DELETE CASCADE
-- `uploaded_by_id` → `staff(id)` ON DELETE SET DEFAULT
+- `uploaded_by_id` → `sys_users(id)` ON DELETE SET DEFAULT
 
 **Indexes:**
 - `idx_task_attachment_tenant` (tenant_id) - 🆕 Multi-tenancy index
@@ -262,7 +262,7 @@ This document shows the complete Tasks & Projects schema structure with data typ
 | `tenant_id` | BIGINT | NOT NULL | 🆕 Multi-tenancy support |
 | `task_id` | BIGINT | FK → `task.id`, NOT NULL | ✏️ Renamed from `id_task` |
 | `parent_comment_id` | BIGINT | FK → `task_comment.id`, DEFAULT NULL | ⭐ For threaded comments |
-| `author_id` | BIGINT | FK → `staff.id`, NOT NULL | ✏️ Renamed from `sender_id` |
+| `author_id` | BIGINT | FK → `sys_users(id)`, NOT NULL | ✏️ Renamed from `sender_id` |
 | `content` | TEXT | NOT NULL | ✏️ Renamed from `message`, increased size |
 | `is_internal` | BOOLEAN | NOT NULL DEFAULT FALSE | ⭐ Internal vs external comment |
 | `created_at` | TIMESTAMP WITH TIME ZONE | DEFAULT CURRENT_TIMESTAMP | ✏️ Renamed from `date_created` |
@@ -276,7 +276,7 @@ This document shows the complete Tasks & Projects schema structure with data typ
 **Foreign Keys:**
 - `task_id` → `task(id)` ON DELETE CASCADE
 - `parent_comment_id` → `task_comment(id)` ON DELETE SET NULL
-- `author_id` → `staff(id)` ON DELETE SET DEFAULT
+- `author_id` → `sys_users(id)` ON DELETE SET DEFAULT
 
 **Indexes:**
 - `idx_task_comment_tenant` (tenant_id) - 🆕 Multi-tenancy index
@@ -297,13 +297,13 @@ This document shows the complete Tasks & Projects schema structure with data typ
 | `id` | BIGSERIAL | PRIMARY KEY | |
 | `tenant_id` | BIGINT | NOT NULL | 🆕 Multi-tenancy support |
 | `comment_id` | BIGINT | FK → `task_comment.id`, NOT NULL | |
-| `mentioned_staff_id` | BIGINT | FK → `staff.id`, NOT NULL | |
+| `mentioned_staff_id` | BIGINT | FK → `sys_users(id)`, NOT NULL | |
 | `created_at` | TIMESTAMP WITH TIME ZONE | DEFAULT CURRENT_TIMESTAMP | |
 | UNIQUE(`comment_id`, `mentioned_staff_id`) | | | |
 
 **Foreign Keys:**
 - `comment_id` → `task_comment(id)` ON DELETE CASCADE
-- `mentioned_staff_id` → `staff(id)` ON DELETE CASCADE
+- `mentioned_staff_id` → `sys_users(id)` ON DELETE CASCADE
 
 **Indexes:**
 - `idx_task_comment_mention_tenant` (tenant_id) - 🆕 Multi-tenancy index
@@ -321,7 +321,7 @@ This document shows the complete Tasks & Projects schema structure with data typ
 | `id` | BIGSERIAL | PRIMARY KEY | |
 | `tenant_id` | BIGINT | NOT NULL | 🆕 Multi-tenancy support |
 | `task_id` | BIGINT | FK → `task.id`, NOT NULL | |
-| `staff_id` | BIGINT | FK → `staff.id`, NOT NULL | ⭐ Who performed the action |
+| `staff_id` | BIGINT | FK → `sys_users(id)`, NOT NULL | ⭐ Who performed the action |
 | `action_type` | VARCHAR(50) | NOT NULL | ⭐ Enum: created, updated, assigned, status_changed, etc. |
 | `field_name` | VARCHAR(100) | DEFAULT NULL | ⭐ Which field changed |
 | `old_value` | TEXT | DEFAULT NULL | ⭐ Previous value |
@@ -331,7 +331,7 @@ This document shows the complete Tasks & Projects schema structure with data typ
 
 **Foreign Keys:**
 - `task_id` → `task(id)` ON DELETE CASCADE
-- `staff_id` → `staff(id)` ON DELETE SET DEFAULT
+- `staff_id` → `sys_users(id)` ON DELETE SET DEFAULT
 
 **Indexes:**
 - `idx_task_activity_tenant` (tenant_id) - 🆕 Multi-tenancy index
@@ -364,7 +364,7 @@ This document shows the complete Tasks & Projects schema structure with data typ
 | `processing_time_hours` | INTEGER | NOT NULL DEFAULT 24 | ✏️ Renamed from `processing_time` |
 | `days_before_insert` | INTEGER | NOT NULL DEFAULT 7 | |
 | `is_active` | BOOLEAN | NOT NULL DEFAULT TRUE | ⭐ Enable/disable template |
-| `created_by_id` | BIGINT | FK → `staff.id`, NOT NULL DEFAULT 0 | ⭐ Who created the template |
+| `created_by_id` | BIGINT | FK → `sys_users(id)`, NOT NULL DEFAULT 0 | ⭐ Who created the template |
 | `created_at` | TIMESTAMP WITH TIME ZONE | NOT NULL DEFAULT CURRENT_TIMESTAMP | ✏️ Renamed from `date_created` |
 | `updated_at` | TIMESTAMP WITH TIME ZONE | DEFAULT CURRENT_TIMESTAMP | ⭐ Last update |
 
@@ -377,7 +377,7 @@ This document shows the complete Tasks & Projects schema structure with data typ
 
 **Foreign Keys:**
 - `project_id` → `project(id)` ON DELETE SET NULL
-- `created_by_id` → `staff(id)` ON DELETE SET DEFAULT
+- `created_by_id` → `sys_users(id)` ON DELETE SET DEFAULT
 
 **Indexes:**
 - `idx_recurring_task_tenant` (tenant_id) - 🆕 Multi-tenancy index
@@ -397,13 +397,13 @@ This document shows the complete Tasks & Projects schema structure with data typ
 | `id` | BIGSERIAL | PRIMARY KEY | |
 | `tenant_id` | BIGINT | NOT NULL | 🆕 Multi-tenancy support |
 | `recurring_task_id` | BIGINT | FK → `recurring_task.id`, NOT NULL | |
-| `staff_id` | BIGINT | FK → `staff.id`, NOT NULL | |
+| `staff_id` | BIGINT | FK → `sys_users(id)`, NOT NULL | |
 | `created_at` | TIMESTAMP WITH TIME ZONE | DEFAULT CURRENT_TIMESTAMP | |
 | UNIQUE(`recurring_task_id`, `staff_id`) | | | |
 
 **Foreign Keys:**
 - `recurring_task_id` → `recurring_task(id)` ON DELETE CASCADE
-- `staff_id` → `staff(id)` ON DELETE CASCADE
+- `staff_id` → `sys_users(id)` ON DELETE CASCADE
 
 **Indexes:**
 - `idx_recurring_task_assignee_tenant` (tenant_id) - 🆕 Multi-tenancy index
@@ -425,7 +425,7 @@ This document shows the complete Tasks & Projects schema structure with data typ
 | `file_path` | VARCHAR(1000) | NOT NULL DEFAULT '' | ⭐ Storage path (replaces `file_link`) |
 | `file_type` | VARCHAR(256) | NOT NULL DEFAULT '' | ✏️ Renamed from `type_file` |
 | `file_size` | BIGINT | NOT NULL DEFAULT 0 | ⭐ Size in bytes |
-| `uploaded_by_id` | BIGINT | FK → `staff.id`, NOT NULL DEFAULT 0 | ✏️ Renamed from `share_by` |
+| `uploaded_by_id` | BIGINT | FK → `sys_users(id)`, NOT NULL DEFAULT 0 | ✏️ Renamed from `share_by` |
 | `description` | VARCHAR(500) | DEFAULT NULL | ⭐ File description |
 | `created_at` | TIMESTAMP WITH TIME ZONE | DEFAULT CURRENT_TIMESTAMP | ✏️ Renamed from `date_created` |
 | `updated_at` | TIMESTAMP WITH TIME ZONE | DEFAULT CURRENT_TIMESTAMP | ⭐ Last update |
@@ -435,7 +435,7 @@ This document shows the complete Tasks & Projects schema structure with data typ
 
 **Foreign Keys:**
 - `project_id` → `project(id)` ON DELETE CASCADE
-- `uploaded_by_id` → `staff(id)` ON DELETE SET DEFAULT
+- `uploaded_by_id` → `sys_users(id)` ON DELETE SET DEFAULT
 
 **Indexes:**
 - `idx_project_repository_tenant` (tenant_id) - 🆕 Multi-tenancy index
@@ -456,7 +456,7 @@ This document shows the complete Tasks & Projects schema structure with data typ
 - Composite indexes added for efficient tenant-scoped queries (e.g., `idx_task_tenant_project`, `idx_task_tenant_status`)
 
 #### Staff Table References ✅
-- All foreign keys correctly reference `staff.id` (verified)
+- All foreign keys correctly reference `sys_users(id)` (verified)
 - Foreign keys use appropriate ON DELETE behaviors: CASCADE, SET NULL, or SET DEFAULT based on business logic
 
 #### Enhanced Indexing 🆕
@@ -538,47 +538,47 @@ This document shows the complete Tasks & Projects schema structure with data typ
 ### Relationships
 
 #### Project Relationships
-- `project.owner_id` → `staff(id)`
-- `project.created_by_id` → `staff(id)`
+- `project.owner_id` → `sys_users(id)`
+- `project.created_by_id` → `sys_users(id)`
 - `milestone.project_id` → `project(id)`
 
 #### Task Core Relationships
 - `task.parent_task_id` → `task(id)` (self-referential for subtasks)
 - `task.project_id` → `project(id)`
 - `task.milestone_id` → `milestone(id)`
-- `task.assignee_id` → `staff(id)` (single assignee)
-- `task.assigned_by_id` → `staff(id)`
-- `task.created_by_id` → `staff(id)`
+- `task.assignee_id` → `sys_users(id)` (single assignee)
+- `task.assigned_by_id` → `sys_users(id)`
+- `task.created_by_id` → `sys_users(id)`
 - `task.recurring_task_id` → `recurring_task(id)`
-- `task.reviewed_by_id` → `staff(id)`
+- `task.reviewed_by_id` → `sys_users(id)`
 - `task.metadata` → JSONB (flexible storage for order_id, customer_id, etc.)
 
 #### Task Collaboration Relationships
 - `task_watcher.task_id` → `task(id)`
-- `task_watcher.staff_id` → `staff(id)`
+- `task_watcher.staff_id` → `sys_users(id)`
 - `task_dependency.task_id` → `task(id)`
 - `task_dependency.depends_on_task_id` → `task(id)`
 
 #### Task Content Relationships
 - `task_comment.task_id` → `task(id)`
 - `task_comment.parent_comment_id` → `task_comment(id)` (threading)
-- `task_comment.author_id` → `staff(id)`
+- `task_comment.author_id` → `sys_users(id)`
 - `task_comment_mention.comment_id` → `task_comment(id)`
-- `task_comment_mention.mentioned_staff_id` → `staff(id)`
+- `task_comment_mention.mentioned_staff_id` → `sys_users(id)`
 - `task_attachment.task_id` → `task(id)`
-- `task_attachment.uploaded_by_id` → `staff(id)`
+- `task_attachment.uploaded_by_id` → `sys_users(id)`
 - `task_activity.task_id` → `task(id)`
-- `task_activity.staff_id` → `staff(id)`
+- `task_activity.staff_id` → `sys_users(id)`
 
 #### Recurring Task Relationships
 - `recurring_task.project_id` → `project(id)`
-- `recurring_task.created_by_id` → `staff(id)`
+- `recurring_task.created_by_id` → `sys_users(id)`
 - `recurring_task_assignee.recurring_task_id` → `recurring_task(id)`
-- `recurring_task_assignee.staff_id` → `staff(id)`
+- `recurring_task_assignee.staff_id` → `sys_users(id)`
 
 #### Project Repository Relationships
 - `project_repository.project_id` → `project(id)`
-- `project_repository.uploaded_by_id` → `staff(id)`
+- `project_repository.uploaded_by_id` → `sys_users(id)`
 
 ### Design Principles
 
@@ -622,8 +622,8 @@ This document shows the complete Tasks & Projects schema structure with data typ
 │     tenant_id        │
 │ UK  code             │ (UNIQUE per tenant)
 │     title            │
-│ FK  owner_id ────────┼───► staff.id (SET DEFAULT)
-│ FK  created_by_id ───┼───► staff.id (SET DEFAULT)
+│ FK  owner_id ────────┼───► sys_users.id (SET DEFAULT)
+│ FK  created_by_id ───┼───► sys_users.id (SET DEFAULT)
 │     status            │
 │     visibility        │
 │     start_date        │
@@ -644,7 +644,7 @@ This document shows the complete Tasks & Projects schema structure with data typ
 │     target_date      │                                    │     file_path        │
 │     status            │                                    │     file_type        │
 └──────────────────────┘                                    │     file_size        │
-         │                                                               │ FK  uploaded_by_id ───► staff.id
+         │                                                               │ FK  uploaded_by_id ───► sys_users.id
          │ 1:N                                                           └──────────────────────┘
          │
          ▼
@@ -657,10 +657,10 @@ This document shows the complete Tasks & Projects schema structure with data typ
 │ FK  parent_task_id ──┼───► task.id (SET NULL) [Self-referential]
 │ FK  project_id ──────┼───► project.id (SET DEFAULT)
 │ FK  milestone_id ────┼───► milestone.id (SET NULL)
-│ FK  assignee_id ─────┼───► staff.id (SET NULL)
-│ FK  assigned_by_id ──┼───► staff.id (SET NULL)
-│ FK  created_by_id ───┼───► staff.id (SET DEFAULT)
-│ FK  reviewed_by_id ───┼───► staff.id (SET NULL)
+│ FK  assignee_id ─────┼───► sys_users.id (SET NULL)
+│ FK  assigned_by_id ──┼───► sys_users.id (SET NULL)
+│ FK  created_by_id ───┼───► sys_users.id (SET DEFAULT)
+│ FK  reviewed_by_id ───┼───► sys_users.id (SET NULL)
 │ FK  recurring_task_id┼───► recurring_task.id (SET NULL)
 │     title            │
 │     task_type        │
@@ -682,7 +682,7 @@ This document shows the complete Tasks & Projects schema structure with data typ
 │ PK  id               │                                    │ PK  id               │
 │     tenant_id        │                                    │     tenant_id        │
 │ FK  task_id ─────────┼───► task.id (CASCADE)             │ FK  task_id ─────────┼───► task.id (CASCADE)
-│ FK  staff_id ────────┼───► staff.id (CASCADE)             │ FK  depends_on_task_id┼───► task.id (CASCADE)
+│ FK  staff_id ────────┼───► sys_users.id (CASCADE)             │ FK  depends_on_task_id┼───► task.id (CASCADE)
 │ UK  (task_id, staff_id)                                   │     dependency_type  │
 └──────────────────────┘                                    │ UK  (task_id, depends_on_task_id, type)
          │                                                               │
@@ -695,8 +695,8 @@ This document shows the complete Tasks & Projects schema structure with data typ
 │ PK  id               │                                    │ PK  id               │
 │     tenant_id        │                                    │     tenant_id        │
 │ FK  task_id ─────────┼───► task.id (CASCADE)             │ FK  task_id ─────────┼───► task.id (CASCADE)
-│ FK  parent_comment_id┼───► task_comment.id (SET NULL)    │ FK  uploaded_by_id ──┼───► staff.id (SET DEFAULT)
-│ FK  author_id ───────┼───► staff.id (SET DEFAULT)        │     file_name        │
+│ FK  parent_comment_id┼───► task_comment.id (SET NULL)    │ FK  uploaded_by_id ──┼───► sys_users.id (SET DEFAULT)
+│ FK  author_id ───────┼───► sys_users.id (SET DEFAULT)        │     file_name        │
 │     content          │                                    │     file_path        │
 │     is_internal      │                                    │     file_type        │
 │     deleted_at       │                                    │     file_size        │
@@ -711,7 +711,7 @@ This document shows the complete Tasks & Projects schema structure with data typ
 │ PK  id               │
 │     tenant_id        │
 │ FK  comment_id ──────┼───► task_comment.id (CASCADE)
-│ FK  mentioned_staff_id┼───► staff.id (CASCADE)
+│ FK  mentioned_staff_id┼───► sys_users.id (CASCADE)
 │ UK  (comment_id, mentioned_staff_id)
 └──────────────────────┘
 
@@ -721,7 +721,7 @@ This document shows the complete Tasks & Projects schema structure with data typ
 │ PK  id               │
 │     tenant_id        │
 │ FK  task_id ─────────┼───► task.id (CASCADE)
-│ FK  staff_id ────────┼───► staff.id (SET DEFAULT)
+│ FK  staff_id ────────┼───► sys_users.id (SET DEFAULT)
 │     action_type      │
 │     field_name       │
 │     old_value        │
@@ -735,7 +735,7 @@ This document shows the complete Tasks & Projects schema structure with data typ
 │ PK  id               │
 │     tenant_id        │
 │ FK  project_id ──────┼───► project.id (SET NULL)
-│ FK  created_by_id ───┼───► staff.id (SET DEFAULT)
+│ FK  created_by_id ───┼───► sys_users.id (SET DEFAULT)
 │     name             │
 │     title_template   │
 │     frequency        │
@@ -752,7 +752,7 @@ This document shows the complete Tasks & Projects schema structure with data typ
 │ PK  id               │
 │     tenant_id        │
 │ FK  recurring_task_id┼───► recurring_task.id (CASCADE)
-│ FK  staff_id ────────┼───► staff.id (CASCADE)
+│ FK  staff_id ────────┼───► sys_users.id (CASCADE)
 │ UK  (recurring_task_id, staff_id)
 └──────────────────────┘
 

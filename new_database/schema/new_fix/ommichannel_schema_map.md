@@ -31,7 +31,8 @@ This document shows the complete Omnichannel Integration schema structure. The s
 │ channels_platforms   │
 │──────────────────────│
 │ PK  id               │
-│     tenant_id        │
+│ FK  brand_id ────────┼───► brands.id (CASCADE)
+│     tenant_id        │ (for multi-tenancy)
 │     name             │
 │     platform_type    │ (facebook, instagram, youtube, zalo, etc.)
 │     status           │
@@ -52,8 +53,9 @@ This document shows the complete Omnichannel Integration schema structure. The s
 │channels_platform_pages│
 │──────────────────────│
 │ PK  id               │
-│     tenant_id        │
 │ FK  platform_id ─────┼───► channels_platforms.id (CASCADE)
+│     brand_id         │ (for multi-tenancy, derived from platform)
+│     tenant_id        │ (for multi-tenancy)
 │     name             │
 │     entity_id        │ (page_id_meta, account_id, channel_id, etc.)
 │     entity_id_secondary│ (page_id_pancake, etc.)
@@ -101,7 +103,7 @@ This document shows the complete Omnichannel Integration schema structure. The s
 │     tenant_id        │
 │ FK  page_id ─────────┼───► channels_platform_pages.id (CASCADE)
 │ FK  contact_id ─────┼───► omnichannel_contact.id (SET NULL)
-│ FK  admin_id ────────┼───► staff.id (SET NULL)
+│ FK  admin_id ────────┼───► sys_users.id (SET NULL)
 │     conversation_id  │
 │     sender_type      │ (user, admin, system)
 │     sender_name      │
@@ -168,6 +170,7 @@ This document shows the complete Omnichannel Integration schema structure. The s
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                              │
 │  Channel Hierarchy:                                                          │
+│    brands ──1:N──► channels_platforms                                       │
 │    channels_platforms ──1:N──► channels_platform_pages                      │
 │                                                                              │
 │  Omnichannel Integration (Unified for ALL Platforms):                       │
@@ -179,6 +182,7 @@ This document shows the complete Omnichannel Integration schema structure. The s
 │    • Join: omnichannel_contact.page_id → channels_platform_pages.id         │
 │    • Then: channels_platform_pages.platform_id → channels_platforms.id     │
 │    • Get: channels_platforms.platform_type (facebook, instagram, zalo, etc.)│
+│    • Brand context: channels_platforms.brand_id → brands.id                │
 │                                                                              │
 │  Integration Flexibility:                                                    │
 │    • omnichannel_contact.integration_via: 'pancake', 'meta', 'direct', etc. │
@@ -195,11 +199,13 @@ This document shows the complete Omnichannel Integration schema structure. The s
 │  Internal System Links:                                                      │
 │    • omnichannel_contact.personal_key_id → crm_personal_keys.external_key   │
 │      (logical link, not FK - allows flexibility)                            │
-│    • omnichannel_message.admin_id → staff.id (FK)                          │
+│    • omnichannel_message.admin_id → sys_users.id (FK)                          │
 │                                                                              │
-│  Multi-Tenancy:                                                              │
+│  Brand & Multi-Tenancy:                                                      │
+│    • channels_platforms linked to brands (brand_id)                        │
 │    • All tables include tenant_id for data isolation                        │
 │    • Unique constraints are tenant-scoped                                   │
+│    • Brand-scoped channels enable brand-level channel management             │
 │                                                                              │
 └─────────────────────────────────────────────────────────────────────────────┘
 
@@ -383,7 +389,7 @@ This document shows the complete Omnichannel Integration schema structure. The s
 | `tenant_id` | BIGINT | NOT NULL | Multi-tenancy support |
 | `page_id` | BIGINT | FK → `channels_platform_pages.id`, NOT NULL | 🔗 Platform page/account |
 | `contact_id` | BIGINT | FK → `omnichannel_contact.id`, DEFAULT NULL | 🔗 Link to contact if available |
-| `admin_id` | BIGINT | FK → `staff.id`, DEFAULT NULL | 🔗 Staff member who sent message |
+| `admin_id` | BIGINT | FK → `sys_users(id)`, DEFAULT NULL | 🔗 Staff member who sent message |
 | `conversation_id` | VARCHAR(100) | DEFAULT NULL | Conversation thread ID |
 | `sender_type` | VARCHAR(50) | DEFAULT NULL | Enum: 'user', 'admin', 'system' |
 | `sender_name` | VARCHAR(256) | DEFAULT NULL | Sender display name |
@@ -398,7 +404,7 @@ This document shows the complete Omnichannel Integration schema structure. The s
 **Foreign Keys:**
 - `page_id` → `channels_platform_pages(id)` ON DELETE CASCADE
 - `contact_id` → `omnichannel_contact(id)` ON DELETE SET NULL
-- `admin_id` → `staff(id)` ON DELETE SET NULL
+- `admin_id` → `sys_users(id)` ON DELETE SET NULL
 
 **Indexes:**
 - `idx_omnichannel_message_tenant` (tenant_id) - Multi-tenancy index

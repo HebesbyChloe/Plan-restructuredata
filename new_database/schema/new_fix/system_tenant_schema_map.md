@@ -32,7 +32,8 @@ This document provides a complete skeleton map and detailed listing of the multi
          │
          ├─── 1:N ────► sys_roles (tenant-scoped)
          ├─── 1:N ────► sys_user_roles (tenant context)
-         └─── 1:N ────► sys_users (via primary_tenant_id, optional)
+         ├─── 1:N ────► sys_users (via primary_tenant_id, optional)
+         └─── 1:N ────► brands (tenant-scoped)
 
 
 ┌─────────────────────────────────────────────────────────────────┐
@@ -108,6 +109,34 @@ This document provides a complete skeleton map and detailed listing of the multi
 
 
 ┌─────────────────────────────────────────────────────────────────┐
+│                      brands                                      │
+│  ────────────────────────────────────────────────────────────  │
+│  • Brand entities within a tenant/company                        │
+│  • One company can have many brands                              │
+│  • Unique per tenant: (tenant_id, code), (tenant_id, name)      │
+│  • Tracks: name, code, description, status, logo, metadata      │
+│  • Links to: sys_tenants                                        │
+└─────────────────────────────────────────────────────────────────┘
+         │
+         ├─── N:1 ────► sys_tenants (tenant owner)
+         └─── 1:N ────► stores (brand-scoped)
+
+
+┌─────────────────────────────────────────────────────────────────┐
+│                      stores                                     │
+│  ────────────────────────────────────────────────────────────  │
+│  • Physical or virtual store locations                          │
+│  • Brand-scoped (one brand can have many stores)                │
+│  • Unique per brand: (brand_id, code), (brand_id, name)         │
+│  • Tracks: name, code, address, status, contact info            │
+│  • Links to: brands, sys_tenants (for multi-tenancy)            │
+└─────────────────────────────────────────────────────────────────┘
+         │
+         ├─── N:1 ────► brands (brand owner)
+         └─── N:1 ────► sys_tenants (tenant owner, for multi-tenancy)
+
+
+┌─────────────────────────────────────────────────────────────────┐
 │                    REFERENCED TABLES (External)                  │
 │  ────────────────────────────────────────────────────────────  │
 │  • auth.users (Supabase) - User authentication                 │
@@ -121,6 +150,10 @@ Relationship Summary:
 sys_tenants 1──N sys_roles                    (CASCADE on delete)
 sys_tenants 1──N sys_user_roles               (CASCADE on delete)
 sys_tenants 1──N sys_users (primary_tenant_id) (optional reference)
+sys_tenants 1──N brands                       (CASCADE on delete)
+
+brands N──1 sys_tenants                        (tenant owner, CASCADE on delete)
+brands 1──N stores                            (brand owner, CASCADE on delete)
 
 sys_users N──1 auth.users                     (via auth_user_id)
 sys_users N──1 sys_tenants                    (via primary_tenant_id)
@@ -133,6 +166,9 @@ sys_roles 1──N sys_user_roles                 (role assignments)
 
 sys_permissions (global, no tenant FK)
 sys_permissions N──N sys_roles                 (via sys_role_permissions)
+
+stores N──1 brands                              (brand owner, CASCADE on delete)
+stores N──1 sys_tenants                         (tenant owner, for multi-tenancy)
 
 sys_role_permissions: Bridge table
   - role_id → sys_roles (CASCADE)
@@ -410,6 +446,154 @@ sys_user_roles: Bridge table with tenant context
 
 ---
 
+### 7. `brands`
+**Purpose:** Brand entities within a tenant/company. One company (tenant) can have many brands, and each brand can have many stores.
+
+| Column | Data Type | Constraints | Notes |
+|--------|-----------|-------------|-------|
+| `id` | BIGINT | PRIMARY KEY, GENERATED BY DEFAULT AS IDENTITY | Auto-incrementing primary key |
+| `tenant_id` | BIGINT | NOT NULL, FK → `sys_tenants(id)` ON DELETE CASCADE | 🔗 Tenant owner (CASCADE on tenant delete) |
+| `code` | VARCHAR | NOT NULL | Machine-readable brand code (e.g., 'BRAND-001', 'MAIN') |
+| `name` | VARCHAR | NOT NULL | Human-readable brand name |
+| `description` | TEXT | NULL | Brand description |
+| `logo_url` | TEXT | NULL | Brand logo URL |
+| `status` | VARCHAR | NOT NULL, DEFAULT 'active', CHECK | ✅ Status: 'active', 'inactive', 'archived' |
+| `website` | VARCHAR | NULL | Brand website URL |
+| `metadata` | JSONB | DEFAULT '{}'::jsonb | Flexible metadata storage |
+| `created_by` | BIGINT | NULL, FK → `sys_users(id)` | 🔗 User who created brand |
+| `updated_by` | BIGINT | NULL, FK → `sys_users(id)` | 🔗 User who last updated |
+| `created_at` | TIMESTAMPTZ | NOT NULL, DEFAULT now() | ⏰ Creation timestamp |
+| `updated_at` | TIMESTAMPTZ | NOT NULL, DEFAULT now() | ⏰ Last update timestamp |
+| `deleted_at` | TIMESTAMPTZ | NULL | ⏰ Soft delete timestamp |
+
+**Check Constraints:**
+- `status` must be one of: 'active', 'inactive', 'archived'
+
+**Unique Constraints:**
+- `(tenant_id, code)` - Unique code per tenant
+- `(tenant_id, name)` - Unique name per tenant
+
+**Foreign Keys:**
+- `tenant_id` → `sys_tenants(id)` ON DELETE CASCADE (brands deleted when tenant is deleted)
+- `created_by` → `sys_users(id)` (who created the brand)
+- `updated_by` → `sys_users(id)` (who last updated)
+
+**Indexes:**
+- `idx_brands_tenant_id(tenant_id)` - Tenant lookup
+- `idx_brands_status(status)` - Status filtering
+- `idx_brands_deleted_at(deleted_at) WHERE deleted_at IS NULL` - Partial index for active brands
+- `UNIQUE(tenant_id, code)` - Ensure unique codes per tenant
+- `UNIQUE(tenant_id, name)` - Ensure unique names per tenant
+
+**Use Cases:**
+- Multi-brand management per company
+- Brand-specific store organization
+- Brand-level reporting and analytics
+- Brand identity management
+
+**Design Notes:**
+- Brands are tenant-scoped (one company can have many brands)
+- Each brand belongs to exactly one tenant (company)
+- `code` provides machine-readable identifier
+- `name` provides human-readable identifier
+- Soft delete pattern (`deleted_at`) for data retention
+- CASCADE on tenant delete ensures brands are removed with company
+
+**Example Brands:**
+- Tenant 1 (Acme Corp):
+  - Brand 1: code='MAIN', name='Acme Main Brand'
+  - Brand 2: code='PREMIUM', name='Acme Premium Line'
+  - Brand 3: code='BUDGET', name='Acme Budget Line'
+
+---
+
+### 8. `stores`
+**Purpose:** Physical or virtual store locations belonging to a brand. One brand can have many stores, but each store belongs to exactly one brand.
+
+| Column | Data Type | Constraints | Notes |
+|--------|-----------|-------------|-------|
+| `id` | BIGINT | PRIMARY KEY, GENERATED BY DEFAULT AS IDENTITY | Auto-incrementing primary key |
+| `brand_id` | BIGINT | NOT NULL, FK → `brands(id)` ON DELETE CASCADE | 🔗 Brand owner (CASCADE on brand delete) |
+| `tenant_id` | BIGINT | NOT NULL, FK → `sys_tenants(id)` ON DELETE CASCADE | 🔗 Tenant owner (for multi-tenancy, CASCADE on tenant delete) |
+| `code` | VARCHAR | NOT NULL | Machine-readable store code (e.g., 'STORE-001', 'HQ') |
+| `name` | VARCHAR | NOT NULL | Human-readable store name (e.g., 'Main Store', 'Downtown Branch') |
+| `description` | TEXT | NULL | Store description |
+| `address_line1` | VARCHAR | NULL | Address line 1 |
+| `address_line2` | VARCHAR | NULL | Address line 2 |
+| `city` | VARCHAR | NULL | City |
+| `state` | VARCHAR | NULL | State/Province |
+| `country` | VARCHAR | NULL | Country |
+| `postal_code` | VARCHAR | NULL | Postal/ZIP code |
+| `phone` | VARCHAR | NULL | Store phone number |
+| `email` | CITEXT | NULL | Store email address |
+| `status` | VARCHAR | NOT NULL, DEFAULT 'active', CHECK | ✅ Status: 'active', 'inactive', 'closed' |
+| `is_headquarters` | BOOLEAN | NOT NULL, DEFAULT false | ✅ Whether this is the company headquarters |
+| `manager_user_id` | BIGINT | NULL, FK → `sys_users(id)` | 🔗 Store manager |
+| `opening_date` | DATE | NULL | Store opening date |
+| `closing_date` | DATE | NULL | Store closing date (if closed) |
+| `timezone` | VARCHAR | NULL | Store timezone (e.g., 'America/New_York') |
+| `metadata` | JSONB | DEFAULT '{}'::jsonb | Flexible metadata storage (hours, features, etc.) |
+| `created_by` | BIGINT | NULL, FK → `sys_users(id)` | 🔗 User who created store |
+| `updated_by` | BIGINT | NULL, FK → `sys_users(id)` | 🔗 User who last updated |
+| `created_at` | TIMESTAMPTZ | NOT NULL, DEFAULT now() | ⏰ Creation timestamp |
+| `updated_at` | TIMESTAMPTZ | NOT NULL, DEFAULT now() | ⏰ Last update timestamp |
+| `deleted_at` | TIMESTAMPTZ | NULL | ⏰ Soft delete timestamp |
+
+**Check Constraints:**
+- `status` must be one of: 'active', 'inactive', 'closed'
+- `closing_date IS NULL OR opening_date IS NULL OR closing_date >= opening_date` - Closing date cannot be before opening date
+
+**Unique Constraints:**
+- `(brand_id, code)` - Unique code per brand
+- `(brand_id, name)` - Unique name per brand
+
+**Foreign Keys:**
+- `brand_id` → `brands(id)` ON DELETE CASCADE (stores deleted when brand is deleted)
+- `tenant_id` → `sys_tenants(id)` ON DELETE CASCADE (stores deleted when tenant is deleted)
+- `manager_user_id` → `sys_users(id)` (store manager)
+- `created_by` → `sys_users(id)` (who created the store)
+- `updated_by` → `sys_users(id)` (who last updated)
+
+**Indexes:**
+- `idx_stores_brand_id(brand_id)` - Brand lookup
+- `idx_stores_tenant_id(tenant_id)` - Tenant lookup
+- `idx_stores_status(status)` - Status filtering
+- `idx_stores_manager(manager_user_id)` - Manager lookup
+- `idx_stores_is_headquarters(brand_id, is_headquarters) WHERE is_headquarters = true` - Partial index for headquarters
+- `idx_stores_deleted_at(deleted_at) WHERE deleted_at IS NULL` - Partial index for active stores
+- `UNIQUE(brand_id, code)` - Ensure unique codes per brand
+- `UNIQUE(brand_id, name)` - Ensure unique names per brand
+
+**Use Cases:**
+- Multi-store management per brand
+- Store location tracking
+- Store-specific operations and reporting
+- Store manager assignment
+- Store status management (active, inactive, closed)
+- Headquarters designation
+
+**Design Notes:**
+- Stores are brand-scoped (one brand can have many stores)
+- Each store belongs to exactly one brand
+- `tenant_id` is maintained for multi-tenancy queries and RLS policies
+- `is_headquarters` flag identifies the main/headquarters store for the brand
+- `code` provides machine-readable identifier (e.g., for integrations)
+- `name` provides human-readable identifier
+- Soft delete pattern (`deleted_at`) for data retention
+- CASCADE on brand delete ensures stores are removed with brand
+- CASCADE on tenant delete ensures stores are removed with company
+
+**Example Stores:**
+- Tenant 1 (Acme Corp) → Brand 1 (Acme Main Brand):
+  - Store 1: code='HQ', name='Headquarters', is_headquarters=true
+  - Store 2: code='STORE-001', name='Downtown Branch', is_headquarters=false
+  - Store 3: code='STORE-002', name='Mall Location', is_headquarters=false
+- Tenant 1 (Acme Corp) → Brand 2 (Acme Premium Line):
+  - Store 1: code='HQ', name='Premium Flagship', is_headquarters=true
+  - Store 2: code='STORE-001', name='Premium Downtown', is_headquarters=false
+
+---
+
 ## Relationships Summary
 
 ### Primary Relationships
@@ -429,33 +613,51 @@ sys_user_roles: Bridge table with tenant context
    - `sys_users.primary_tenant_id` → `sys_tenants.id`
    - **Optional:** Users may not have a primary tenant
 
-4. **`sys_users` → `sys_user_roles`** (One-to-Many)
+4. **`sys_tenants` → `brands`** (One-to-Many)
+   - One tenant (company) can have many brands
+   - `brands.tenant_id` → `sys_tenants.id`
+   - **CASCADE:** Deleting a tenant deletes all its brands
+   - Each brand belongs to exactly one tenant
+
+5. **`brands` → `stores`** (One-to-Many)
+   - One brand can have many stores
+   - `stores.brand_id` → `brands.id`
+   - **CASCADE:** Deleting a brand deletes all its stores
+   - Each store belongs to exactly one brand
+   - Stores also maintain `tenant_id` for multi-tenancy queries
+
+6. **`sys_users` → `sys_user_roles`** (One-to-Many)
    - One user can have many role assignments (across tenants)
    - `sys_user_roles.user_id` → `sys_users.id`
    - **CASCADE:** Deleting a user deletes all their role assignments
 
-5. **`sys_users` → `sys_users`** (One-to-Many, Self-Referential)
+7. **`sys_users` → `sys_users`** (One-to-Many, Self-Referential)
    - One user can have many direct reports (manager hierarchy)
    - `sys_users.manager_user_id` → `sys_users.id`
    - Enables organizational hierarchy
 
-6. **`sys_roles` → `sys_user_roles`** (One-to-Many)
+8. **`sys_users` → `stores`** (One-to-Many, Optional)
+   - One user can manage many stores (via manager_user_id)
+   - `stores.manager_user_id` → `sys_users.id`
+   - **Optional:** Stores may not have a manager assigned
+
+9. **`sys_roles` → `sys_user_roles`** (One-to-Many)
    - One role can be assigned to many users
    - `sys_user_roles.role_id` → `sys_roles.id`
    - **CASCADE:** Deleting a role removes all user assignments
 
-7. **`sys_roles` ↔ `sys_permissions`** (Many-to-Many)
+10. **`sys_roles` ↔ `sys_permissions`** (Many-to-Many)
    - Roles can have many permissions, permissions can be in many roles
    - Bridge: `sys_role_permissions`
    - `sys_role_permissions.role_id` → `sys_roles.id` (CASCADE)
    - `sys_role_permissions.permission_id` → `sys_permissions.id` (RESTRICT)
 
-8. **`sys_users` ↔ `sys_roles`** (Many-to-Many, Per Tenant)
-   - Users can have many roles, roles can be assigned to many users
-   - Bridge: `sys_user_roles` (includes tenant context)
-   - `sys_user_roles.user_id` → `sys_users.id` (CASCADE)
-   - `sys_user_roles.role_id` → `sys_roles.id` (CASCADE)
-   - `sys_user_roles.tenant_id` → `sys_tenants.id` (CASCADE)
+10. **`sys_users` ↔ `sys_roles`** (Many-to-Many, Per Tenant)
+    - Users can have many roles, roles can be assigned to many users
+    - Bridge: `sys_user_roles` (includes tenant context)
+    - `sys_user_roles.user_id` → `sys_users.id` (CASCADE)
+    - `sys_user_roles.role_id` → `sys_roles.id` (CASCADE)
+    - `sys_user_roles.tenant_id` → `sys_tenants.id` (CASCADE)
 
 ### External Dependencies
 
@@ -465,9 +667,9 @@ sys_user_roles: Bridge table with tenant context
 
 ### Cascade Behaviors
 
-- **Tenant Deletion:** Cascades to `sys_roles` and `sys_user_roles`
+- **Tenant Deletion:** Cascades to `sys_roles`, `sys_user_roles`, and `stores`
 - **Role Deletion:** Cascades to `sys_role_permissions` and `sys_user_roles`
-- **User Deletion:** Cascades to `sys_user_roles`
+- **User Deletion:** Cascades to `sys_user_roles` (stores.manager_user_id can be NULL)
 - **Permission Deletion:** RESTRICTED (cannot delete if assigned to roles)
 
 ---
@@ -510,6 +712,18 @@ sys_user_roles: Bridge table with tenant context
 - `idx_user_roles_role(role_id)` - Already defined
 - `idx_user_roles_expires(expires_at) WHERE expires_at IS NOT NULL` - Partial index for expiring roles
 - `idx_user_roles_tenant_user(tenant_id, user_id)` - Composite for tenant user lookup
+
+### `stores`
+- `UNIQUE(tenant_id, code)` - Already defined
+- `UNIQUE(tenant_id, name)` - Already defined
+- `idx_stores_tenant_id(tenant_id)` - Already defined
+- `idx_stores_status(status)` - Already defined
+- `idx_stores_manager(manager_user_id)` - Already defined
+- `idx_stores_is_headquarters(tenant_id, is_headquarters) WHERE is_headquarters = true` - Already defined (partial)
+- `idx_stores_deleted_at(deleted_at) WHERE deleted_at IS NULL` - Already defined (partial)
+- `idx_stores_city(city)` - Filter by city
+- `idx_stores_country(country)` - Filter by country
+- `idx_stores_opening_date(opening_date)` - Date-based queries
 
 ---
 
@@ -794,4 +1008,12 @@ ON CONFLICT (role_id, permission_id) DO NOTHING;
   - `is_default = true` roles are auto-assigned to new tenant members
   - Typically 'viewer' or 'member' role
   - Can have multiple default roles per tenant
+
+- **Stores:**
+  - One company (tenant) can have many stores
+  - Each store belongs to exactly one tenant
+  - `is_headquarters` flag identifies the main store
+  - Stores can have managers assigned (`manager_user_id`)
+  - Soft delete pattern for data retention
+  - CASCADE on tenant delete ensures stores are removed with company
 

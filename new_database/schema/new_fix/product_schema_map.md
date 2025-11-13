@@ -30,12 +30,12 @@ This document shows the complete Product & Inventory schema structure with data 
 | `promotion_id` | INTEGER | DEFAULT 0 | ✏️ Renamed from `id_promo` |
 | `created_at` | TIMESTAMP WITH TIME ZONE | DEFAULT CURRENT_TIMESTAMP | ✏️ Renamed from `date_created` |
 | `updated_at` | TIMESTAMP WITH TIME ZONE | DEFAULT CURRENT_TIMESTAMP | ✏️ Renamed from `last_update` |
-| `created_by_id` | BIGINT | FK → `staff.id` | ✏️ Renamed from `by_user` |
+| `created_by_id` | BIGINT | FK → `sys_users(id)` | 🔗 User who created product |
 | `status` | VARCHAR(50) | DEFAULT 'draft' | Product status: 'draft', 'publish', 'updated', 'do_not_import' |
 | `published_at` | TIMESTAMP WITH TIME ZONE | NULL | Date when product was published (NULL if not published yet) |
 
 **Foreign Keys:**
-- `created_by_id` → `staff(id)`
+- `created_by_id` → `sys_users(id)`
 - `promotion_id` → `promotion(id)` (via ALTER TABLE)
 
 **Junction Tables (Normalized):**
@@ -169,13 +169,13 @@ Custom products (`product_type='customize'`) store all customization data in `pr
 | `inbound_vn` | INTEGER | DEFAULT 0, CHECK >= 0 | 🆕 Số lượng sắp về/dự kiến về kho VN |
 | `inbound_us` | INTEGER | DEFAULT 0, CHECK >= 0 | 🆕 Số lượng sắp về/dự kiến về kho US |
 | `name_product` | VARCHAR(500) | NOT NULL | 📊 Denormalized from `product.name` for performance |
-| `updated_by_id` | BIGINT | FK → `staff.id` | ✏️ Renamed from `user` |
+| `updated_by_id` | BIGINT | FK → `sys_users(id)` | ✏️ Renamed from `user` |
 | `time_group_sku` | TIMESTAMP WITH TIME ZONE | DEFAULT CURRENT_TIMESTAMP | ✏️ Group SKU giống nhau theo thời gian để render |
 | `created_at` | TIMESTAMP WITH TIME ZONE | NOT NULL DEFAULT CURRENT_TIMESTAMP | ✏️ Renamed from `date_created` |
 | `updated_at` | TIMESTAMP WITH TIME ZONE | NOT NULL DEFAULT CURRENT_TIMESTAMP | ✏️ Renamed from `last_update` |
 
 **Foreign Keys:**
-- `updated_by_id` → `staff(id)`
+- `updated_by_id` → `sys_users(id)`
 
 **Indexes:**
 - `idx_stock_product_sku` (on `product_sku`)
@@ -354,12 +354,12 @@ Custom products (`product_type='customize'`) store all customization data in `pr
 | `product_id` | BIGINT | FK → `product.id`, NOT NULL, UNIQUE | One-to-one with product |
 | `thumbnail` | VARCHAR(1000) | DEFAULT '' | Thumbnail image URL |
 | `gallery` | TEXT | DEFAULT '' | Gallery images as JSON array or comma-separated URLs |
-| `updated_by_id` | BIGINT | FK → `staff.id` | User who last updated the images |
+| `updated_by_id` | BIGINT | FK → `sys_users(id)` | User who last updated the images |
 | `updated_at` | TIMESTAMP WITH TIME ZONE | DEFAULT CURRENT_TIMESTAMP | Last update timestamp |
 
 **Foreign Keys:**
 - `product_id` → `product(id)` ON DELETE CASCADE
-- `updated_by_id` → `staff(id)`
+- `updated_by_id` → `sys_users(id)`
 
 **Indexes:**
 - `idx_product_image_product` (UNIQUE on `product_id`)
@@ -394,11 +394,11 @@ Custom products (`product_type='customize'`) store all customization data in `pr
 | `customization` | JSONB | NOT NULL | Flexible JSON storage for all customization values (can reference external data) |
 | `created_at` | TIMESTAMP WITH TIME ZONE | DEFAULT CURRENT_TIMESTAMP | |
 | `updated_at` | TIMESTAMP WITH TIME ZONE | DEFAULT CURRENT_TIMESTAMP | Auto-update trigger |
-| `updated_by_id` | BIGINT | FK → `staff.id` | User who last updated the customization |
+| `updated_by_id` | BIGINT | FK → `sys_users(id)` | User who last updated the customization |
 
 **Foreign Keys:**
 - `product_id` → `product(id)` ON DELETE CASCADE
-- `updated_by_id` → `staff(id)`
+- `updated_by_id` → `sys_users(id)`
 
 **Indexes:**
 - `idx_product_customize_product` (UNIQUE on `product_id`)
@@ -584,10 +584,10 @@ There are three product types:
 | `thumbnail` | VARCHAR(500) | DEFAULT '' | Thumbnail image URL | ✏️ Renamed from `thumb_nail` |
 | `created_at` | TIMESTAMP WITH TIME ZONE | DEFAULT CURRENT_TIMESTAMP | ✏️ Renamed from `date_created` |
 | `updated_at` | TIMESTAMP WITH TIME ZONE | DEFAULT CURRENT_TIMESTAMP | ✏️ Renamed from `last_update` |
-| `updated_by_id` | BIGINT | FK → `staff.id` | ✏️ Renamed from `by_user` |
+| `updated_by_id` | BIGINT | FK → `sys_users(id)` | ✏️ Renamed from `by_user` |
 
 **Foreign Keys:**
-- `updated_by_id` → `staff(id)`
+- `updated_by_id` → `sys_users(id)`
 
 **Indexes:**
 - `idx_material_sku` (UNIQUE on `sku`)
@@ -743,7 +743,7 @@ There are three product types:
 - **Promotion System**: Promotion rules with categories, products, and attributes stored as pipe-separated IDs (e.g., "23|89|7741") for simple querying without junction tables
 
 ### Relationships
-- `product.created_by_id` → `staff.id`
+- `product.created_by_id` → `sys_users(id)`
 - `product.promotion_id` → `promotion.id`
 - `product_category.product_id` → `product.id`
 - `product_category.category_id` → `category.id`
@@ -751,13 +751,13 @@ There are three product types:
 - `product_attribute_value.product_id` → `product.id`
 - `product_attribute_value.attribute_id` → `product_attribute.id`
 - `product_customize.product_id` → `product.id` (one-to-one, for customize products with external data)
-- `product_customize.updated_by_id` → `staff.id`
+- `product_customize.updated_by_id` → `sys_users.id`
 - `product_set_item.set_product_id` → `product.id`
 - `product_set_item.item_product_id` → `product.id`
 - `diamond.product_id` → `product.id` (optional, only for certified diamonds)
 - `gemstone.product_id` → `product.id` (optional, only for certified gemstones)
-- `stock.updated_by_id` → `staff.id`
-- `material.updated_by_id` → `staff.id`
+- `stock.updated_by_id` → `sys_users.id`
+- `material.updated_by_id` → `sys_users.id`
 - `material_product.material_id` → `material.id`
 - `material_product.product_id` → `product.id`
 - `category.parent_id` → `category.id` (self-referencing)

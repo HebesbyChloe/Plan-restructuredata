@@ -50,7 +50,7 @@ This document shows the complete Schedule Management schema structure with data 
 |--------|-----------|-------------|-------|
 | `id` | BIGSERIAL | PRIMARY KEY | |
 | `tenant_id` | BIGINT | NOT NULL | 🆕 Multi-tenancy support |
-| `staff_id` | BIGINT | FK → `staff.id`, NOT NULL | ✏️ Renamed from `id_staff` |
+| `staff_id` | BIGINT | FK → `sys_users(id)`, NOT NULL | ✏️ Renamed from `id_staff` |
 | `start_time` | TIMESTAMP WITH TIME ZONE | NOT NULL | ✏️ Renamed from `date_time_start` |
 | `end_time` | TIMESTAMP WITH TIME ZONE | NOT NULL | ✏️ Renamed from `date_time_end` |
 | `shift_name` | VARCHAR(256) | NOT NULL DEFAULT '' | ✏️ Renamed from `shift` |
@@ -64,9 +64,9 @@ This document shows the complete Schedule Management schema structure with data 
 | `is_leader_shift` | BOOLEAN | DEFAULT FALSE | ✏️ Renamed from `leader_shift` |
 | `created_at` | TIMESTAMP WITH TIME ZONE | NOT NULL DEFAULT CURRENT_TIMESTAMP | ✏️ Renamed from `date_created` |
 | `updated_at` | TIMESTAMP WITH TIME ZONE | DEFAULT CURRENT_TIMESTAMP | ⭐ Last update timestamp |
-| `updated_by_id` | BIGINT | FK → `staff.id`, DEFAULT NULL | ⭐ Track who last updated |
+| `updated_by_id` | BIGINT | FK → `sys_users(id)`, DEFAULT NULL | ⭐ Track who last updated |
 | `authorized_at` | TIMESTAMP WITH TIME ZONE | DEFAULT NULL | ⭐ Authorization timestamp |
-| `authorized_by_id` | BIGINT | FK → `staff.id`, DEFAULT NULL | ⭐ Who authorized |
+| `authorized_by_id` | BIGINT | FK → `sys_users(id)`, DEFAULT NULL | ⭐ Who authorized |
 
 **ENUM Types:**
 - `schedule_status`: 'draft', 'confirmed', 'completed', 'failed'
@@ -83,11 +83,11 @@ This document shows the complete Schedule Management schema structure with data 
 - 🗑️ `complete_shift` (TINYINT) - Replaced by `status` ENUM
 
 **Foreign Keys:**
-- `staff_id` → `staff(id)` ON DELETE CASCADE
+- `staff_id` → `sys_users(id)` ON DELETE CASCADE
 - `leave_type_id` → `leave_type(id)` ON DELETE SET NULL
 - `shift_report_id` → `shift_report(id)` ON DELETE SET NULL
-- `authorized_by_id` → `staff(id)` ON DELETE SET NULL
-- `updated_by_id` → `staff(id)` ON DELETE SET NULL
+- `authorized_by_id` → `sys_users(id)` ON DELETE SET NULL
+- `updated_by_id` → `sys_users(id)` ON DELETE SET NULL
 
 **Indexes:**
 - `idx_schedule_tenant` (tenant_id) - 🆕 Multi-tenancy index
@@ -112,7 +112,7 @@ This document shows the complete Schedule Management schema structure with data 
 |--------|-----------|-------------|-------|
 | `id` | BIGSERIAL | PRIMARY KEY | |
 | `tenant_id` | BIGINT | NOT NULL | 🆕 Multi-tenancy support |
-| `staff_id` | BIGINT | FK → `staff.id`, NOT NULL | ✏️ Renamed from `id_staff` |
+| `staff_id` | BIGINT | FK → `sys_users(id)`, NOT NULL | ✏️ Renamed from `id_staff` |
 | `week_number` | INTEGER | NOT NULL DEFAULT 1 | ✏️ Renamed from `week` |
 | `year` | INTEGER | NOT NULL | 🔄 Changed from YEAR(4) |
 | `preferences` | JSONB | NOT NULL DEFAULT '{}' | ⭐ Changed from VARCHAR(500) to JSONB |
@@ -121,7 +121,7 @@ This document shows the complete Schedule Management schema structure with data 
 | UNIQUE(`tenant_id`, `staff_id`, `week_number`, `year`) | | | 🆕 Tenant-scoped unique constraint |
 
 **Foreign Keys:**
-- `staff_id` → `staff(id)` ON DELETE CASCADE
+- `staff_id` → `sys_users(id)` ON DELETE CASCADE
 
 **Indexes:**
 - `idx_schedule_preferences_tenant` (tenant_id) - 🆕 Multi-tenancy index
@@ -140,7 +140,7 @@ This document shows the complete Schedule Management schema structure with data 
 | `id` | BIGSERIAL | PRIMARY KEY | |
 | `tenant_id` | BIGINT | NOT NULL | 🆕 Multi-tenancy support |
 | `revision_type` | VARCHAR(256) | NOT NULL DEFAULT '' | ✏️ Renamed from `type` |
-| `updated_by_id` | BIGINT | FK → `staff.id`, DEFAULT NULL | ✏️ Renamed from `update_by` |
+| `updated_by_id` | BIGINT | FK → `sys_users(id)`, DEFAULT NULL | ✏️ Renamed from `update_by` |
 | `updated_by_name` | VARCHAR(256) | DEFAULT '' | ⭐ Fallback for legacy data |
 | `start_date` | DATE | DEFAULT NULL | ✏️ Renamed from `date_time_start` |
 | `end_date` | DATE | DEFAULT NULL | ✏️ Renamed from `date_time_end` |
@@ -152,7 +152,7 @@ This document shows the complete Schedule Management schema structure with data 
 - `updated_by_name` provides fallback for legacy data that cannot be mapped to staff IDs.
 
 **Foreign Keys:**
-- `updated_by_id` → `staff(id)` ON DELETE SET NULL
+- `updated_by_id` → `sys_users(id)` ON DELETE SET NULL
 
 **Constraints:**
 - CHECK(`end_date` IS NULL OR `start_date` IS NULL OR `end_date` >= `start_date`) - Validate date range
@@ -175,7 +175,7 @@ This document shows the complete Schedule Management schema structure with data 
 | `tenant_id` | BIGINT | NOT NULL | 🆕 Multi-tenancy support |
 | `revision_id` | BIGINT | FK → `schedule_revision.id`, NOT NULL | |
 | `schedule_id` | BIGINT | FK → `schedule.id`, DEFAULT NULL | ⭐ Reference to original schedule |
-| `staff_id` | BIGINT | FK → `staff.id`, NOT NULL | |
+| `staff_id` | BIGINT | FK → `sys_users(id)`, NOT NULL | |
 | `start_time` | TIMESTAMP WITH TIME ZONE | NOT NULL | |
 | `end_time` | TIMESTAMP WITH TIME ZONE | NOT NULL | |
 | `shift_name` | VARCHAR(256) | NOT NULL DEFAULT '' | |
@@ -199,7 +199,7 @@ This document shows the complete Schedule Management schema structure with data 
 **Foreign Keys:**
 - `revision_id` → `schedule_revision(id)` ON DELETE CASCADE
 - `schedule_id` → `schedule(id)` ON DELETE SET NULL
-- `staff_id` → `staff(id)` ON DELETE CASCADE
+- `staff_id` → `sys_users(id)` ON DELETE CASCADE
 - `leave_type_id` → `leave_type(id)` ON DELETE SET NULL
 - `shift_report_id` → `shift_report(id)` ON DELETE SET NULL
 
@@ -221,7 +221,7 @@ This document shows the complete Schedule Management schema structure with data 
 |--------|-----------|-------------|-------|
 | `id` | BIGSERIAL | PRIMARY KEY | |
 | `tenant_id` | BIGINT | NOT NULL | 🆕 Multi-tenancy support |
-| `staff_id` | BIGINT | FK → `staff.id`, NOT NULL | ✏️ Renamed from `id_staff` |
+| `staff_id` | BIGINT | FK → `sys_users(id)`, NOT NULL | ✏️ Renamed from `id_staff` |
 | `leave_type_id` | BIGINT | FK → `leave_type.id`, DEFAULT NULL | 🔄 Normalized from implicit leave type |
 | `group` | VARCHAR(100) | DEFAULT '' | |
 | `reason` | VARCHAR(500) | NOT NULL DEFAULT '' | 🔄 Increased from VARCHAR(256) |
@@ -230,7 +230,7 @@ This document shows the complete Schedule Management schema structure with data 
 | `status` | time_off_request_status | NOT NULL DEFAULT 'pending' | ⭐ ENUM type for data integrity |
 | `schedule_id` | BIGINT | FK → `schedule.id`, DEFAULT NULL | ✏️ Renamed from `id_shift_schedule` |
 | `hr_comment` | VARCHAR(600) | DEFAULT '' | |
-| `confirmed_by_id` | BIGINT | FK → `staff.id`, DEFAULT NULL | ✏️ Renamed from `confirm_by` |
+| `confirmed_by_id` | BIGINT | FK → `sys_users(id)`, DEFAULT NULL | ✏️ Renamed from `confirm_by` |
 | `created_at` | TIMESTAMP WITH TIME ZONE | DEFAULT CURRENT_TIMESTAMP | ✏️ Renamed from `date_created` |
 | `confirmed_at` | TIMESTAMP WITH TIME ZONE | DEFAULT NULL | ✏️ Renamed from `date_confirm` |
 
@@ -239,10 +239,10 @@ This document shows the complete Schedule Management schema structure with data 
 - CHECK(`day_off` IS NULL OR `day_off` >= CURRENT_DATE) - Validate day_off is not in the past (optional)
 
 **Foreign Keys:**
-- `staff_id` → `staff(id)` ON DELETE CASCADE
+- `staff_id` → `sys_users(id)` ON DELETE CASCADE
 - `leave_type_id` → `leave_type(id)` ON DELETE SET NULL
 - `schedule_id` → `schedule(id)` ON DELETE SET NULL
-- `confirmed_by_id` → `staff(id)` ON DELETE SET NULL
+- `confirmed_by_id` → `sys_users(id)` ON DELETE SET NULL
 
 **Indexes:**
 - `idx_schedule_time_off_request_tenant` (tenant_id) - 🆕 Multi-tenancy index
@@ -300,25 +300,25 @@ This document shows the complete Schedule Management schema structure with data 
 ### Relationships
 
 #### Core Relationships
-- `schedule.staff_id` → `staff(id)` ON DELETE CASCADE
+- `schedule.staff_id` → `sys_users(id)` ON DELETE CASCADE
 - `schedule.leave_type_id` → `leave_type(id)` ON DELETE SET NULL
 - `schedule.shift_report_id` → `shift_report(id)` ON DELETE SET NULL
-- `schedule.authorized_by_id` → `staff(id)` ON DELETE SET NULL
-- `schedule.updated_by_id` → `staff(id)` ON DELETE SET NULL
+- `schedule.authorized_by_id` → `sys_users(id)` ON DELETE SET NULL
+- `schedule.updated_by_id` → `sys_users(id)` ON DELETE SET NULL
 
 #### Preferences & Revisions
-- `schedule_preferences.staff_id` → `staff(id)` ON DELETE CASCADE
-- `schedule_revision.updated_by_id` → `staff(id)` ON DELETE SET NULL
+- `schedule_preferences.staff_id` → `sys_users(id)` ON DELETE CASCADE
+- `schedule_revision.updated_by_id` → `sys_users(id)` ON DELETE SET NULL
 - `schedule_revision_detail.revision_id` → `schedule_revision(id)` ON DELETE CASCADE
 - `schedule_revision_detail.schedule_id` → `schedule(id)` ON DELETE SET NULL
-- `schedule_revision_detail.staff_id` → `staff(id)` ON DELETE CASCADE
+- `schedule_revision_detail.staff_id` → `sys_users(id)` ON DELETE CASCADE
 - `schedule_revision_detail.leave_type_id` → `leave_type(id)` ON DELETE SET NULL
 
 #### Time Off Requests
-- `schedule_time_off_request.staff_id` → `staff(id)` ON DELETE CASCADE
+- `schedule_time_off_request.staff_id` → `sys_users(id)` ON DELETE CASCADE
 - `schedule_time_off_request.leave_type_id` → `leave_type(id)` ON DELETE SET NULL
 - `schedule_time_off_request.schedule_id` → `schedule(id)` ON DELETE SET NULL
-- `schedule_time_off_request.confirmed_by_id` → `staff(id)` ON DELETE SET NULL
+- `schedule_time_off_request.confirmed_by_id` → `sys_users(id)` ON DELETE SET NULL
 
 ### Design Principles
 
@@ -359,11 +359,11 @@ This document shows the complete Schedule Management schema structure with data 
 │──────────────────────│                                    │──────────────────────│
 │ PK  id               │                                    │ PK  id               │
 │     tenant_id        │                                    │     tenant_id        │
-│ UK  code             │ (UNIQUE per tenant)                │ FK  staff_id ────────┼───► staff.id (CASCADE)
+│ UK  code             │ (UNIQUE per tenant)                │ FK  staff_id ────────┼───► sys_users.id (CASCADE)
 │     name             │                                    │ FK  leave_type_id ───┼───► leave_type.id (SET NULL)
 │     is_paid          │                                    │ FK  shift_report_id ─┼───► shift_report.id (SET NULL)
-│     requires_approval│                                    │ FK  authorized_by_id ─┼───► staff.id (SET NULL)
-│     is_active        │                                    │ FK  updated_by_id ────┼───► staff.id (SET NULL)
+│     requires_approval│                                    │ FK  authorized_by_id ─┼───► sys_users.id (SET NULL)
+│     is_active        │                                    │ FK  updated_by_id ────┼───► sys_users.id (SET NULL)
 └──────────────────────┘                                    │     start_time        │
          │                                                  │     end_time          │
          │ N:1                                             │     shift_name        │
@@ -381,10 +381,10 @@ This document shows the complete Schedule Management schema structure with data 
          │                                                  │──────────────────────│    │──────────────────────│
          │                                                  │ PK  id               │    │ PK  id               │
          │                                                  │     tenant_id        │    │     tenant_id        │
-         │                                                  │ FK  staff_id ─────────┼───►│ FK  staff_id ─────────┼───► staff.id
+         │                                                  │ FK  staff_id ─────────┼───►│ FK  staff_id ─────────┼───► sys_users.id
          │                                                  │     week_number      │    │ FK  leave_type_id ────┼───► leave_type.id
          │                                                  │     year              │    │ FK  schedule_id ─────┼───► schedule.id
-         │                                                  │     preferences(JSONB)│    │ FK  confirmed_by_id ─┼───► staff.id
+         │                                                  │     preferences(JSONB)│    │ FK  confirmed_by_id ─┼───► sys_users.id
          │                                                  │ UK  (tenant_id, staff_id, week, year)│     day_off          │
          │                                                  └──────────────────────┘    │     status            │
          │                                                                              └──────────────────────┘
@@ -396,7 +396,7 @@ This document shows the complete Schedule Management schema structure with data 
 │──────────────────────│
 │ PK  id               │
 │     tenant_id        │
-│ FK  updated_by_id ───┼───► staff.id (SET NULL)
+│ FK  updated_by_id ───┼───► sys_users.id (SET NULL)
 │     revision_type    │
 │     start_date       │
 │     end_date         │
@@ -413,7 +413,7 @@ This document shows the complete Schedule Management schema structure with data 
 │     tenant_id        │
 │ FK  revision_id ─────┼───► schedule_revision.id (CASCADE)
 │ FK  schedule_id ─────┼───► schedule.id (SET NULL)
-│ FK  staff_id ────────┼───► staff.id (CASCADE)
+│ FK  staff_id ────────┼───► sys_users.id (CASCADE)
 │ FK  leave_type_id ───┼───► leave_type.id (SET NULL)
 │ FK  shift_report_id ─┼───► shift_report.id (SET NULL)
 │     start_time       │

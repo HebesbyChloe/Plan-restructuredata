@@ -60,7 +60,7 @@ This document defines the schema for marketing platforms and their associated pa
 | Column | Data Type | Constraints | Notes |
 |--------|-----------|-------------|-------|
 | `id` | BIGSERIAL | PRIMARY KEY | |
-| `tenant_id` | INTEGER | FK → `sys_tenants.id`, NOT NULL | 🆕 Multi-tenancy |
+| `tenant_id` | BIGINT | NOT NULL, FK → `sys_tenants(id)` | 🔗 Multi-tenancy |
 | `name` | VARCHAR(200) | NOT NULL | Platform name |
 | `platform_type` | VARCHAR(100) | NOT NULL | ✅ 'facebook', 'instagram', 'youtube', 'google-ads', 'tiktok', 'zalo', 'email', 'linkedin' |
 | `status` | VARCHAR(50) | NOT NULL DEFAULT 'active' | ✅ 'active', 'inactive' |
@@ -101,7 +101,7 @@ This document defines the schema for marketing platforms and their associated pa
 | Column | Data Type | Constraints | Notes |
 |--------|-----------|-------------|-------|
 | `id` | BIGSERIAL | PRIMARY KEY | |
-| `tenant_id` | INTEGER | FK → `sys_tenants.id`, NOT NULL | 🆕 Multi-tenancy |
+| `tenant_id` | BIGINT | NOT NULL, FK → `sys_tenants(id)` | 🔗 Multi-tenancy |
 | `platform_id` | BIGINT | FK → `channels_platforms.id`, NOT NULL | 🔗 Parent platform |
 | `name` | VARCHAR(256) | NOT NULL | Page/Account name |
 | `entity_id` | VARCHAR(200) | DEFAULT NULL | External entity ID (page_id_meta, account_id, channel_id, etc.) |
