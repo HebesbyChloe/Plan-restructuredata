@@ -1,0 +1,14 @@
+{
+  "name": "map-backend",
+  "version": "1.0.0",
+  "description": "Backend API với PostgreSQL",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "dotenv": "^17.2.3",
+    "mysql2": "^3.15.3",
+    "pg": "^8.11.3"
+  }
+}
