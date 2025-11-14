@@ -86,7 +86,7 @@ async function getCustomersFromNewDB() {
       INNER JOIN crm_personal_keys pk ON c.personal_key_id = pk.id
       WHERE pk.external_key != '' AND pk.external_key IS NOT NULL
       ORDER BY c.id
-      LIMIT 5`
+      LIMIT 100`
     );
     return result.rows;
   } catch (error) {
@@ -142,7 +142,7 @@ async function getOrdersByEmail(mysqlConnection, email) {
       FROM db_order
       WHERE email = ?
       ORDER BY date_created DESC
-      LIMIT 1`,
+      LIMIT 2`,
       [email]
     );
     return orders;
@@ -228,6 +228,92 @@ async function getOrderRefunds(mysqlConnection, orderId) {
       [orderId]
     );
     return refunds;
+  } catch (error) {
+    throw error;
+  }
+}
+
+// Get after sales services from old database (by order ID)
+async function getAfterSalesServices(mysqlConnection, orderId) {
+  try {
+    const [services] = await mysqlConnection.execute(
+      `SELECT 
+        id_order,
+        id_old_order,
+        updated_by,
+        date_inquiry,
+        details_note,
+        case_services,
+        status_case,
+        date_created_inquiry,
+        reason,
+        status_tracking,
+        code_rma,
+        date_received,
+        tracking_number,
+        amount
+      FROM db_status_after_sales_services
+      WHERE id_order = ?
+      LIMIT 1`,
+      [orderId]
+    );
+    return services.length > 0 ? services[0] : null;
+  } catch (error) {
+    throw error;
+  }
+}
+
+// Get pre-order status from old database (by order ID)
+async function getPreOrderStatus(mysqlConnection, orderId) {
+  try {
+    const [preOrders] = await mysqlConnection.execute(
+      `SELECT 
+        id,
+        status,
+        update_by,
+        update_time,
+        hold_until,
+        reason,
+        category,
+        vendor,
+        note,
+        processing_date
+      FROM db_status_pre_order
+      WHERE id = ?
+      LIMIT 1`,
+      [orderId]
+    );
+    return preOrders.length > 0 ? preOrders[0] : null;
+  } catch (error) {
+    throw error;
+  }
+}
+
+// Get diamond/customization status from old database (by order ID)
+async function getDiamondStatus(mysqlConnection, orderId) {
+  try {
+    const [diamonds] = await mysqlConnection.execute(
+      `SELECT 
+        id,
+        actual_amount,
+        balance_due,
+        status_payment,
+        img_3d_design,
+        status_design,
+        time_design,
+        time_material,
+        status_material,
+        status_complete,
+        time_complete,
+        ship_date,
+        check_status,
+        third_party_brand
+      FROM db_status_diamond
+      WHERE id = ?
+      LIMIT 1`,
+      [orderId]
+    );
+    return diamonds.length > 0 ? diamonds[0] : null;
   } catch (error) {
     throw error;
   }
@@ -487,6 +573,7 @@ async function seedOrdersData() {
 
           // Get and migrate order line items
           const oldLineItems = await getOrderLineItems(mysqlConnection, oldOrder.id);
+          const itemIdMap = {}; // Map old item id to new item id
 
           for (const oldItem of oldLineItems) {
             try {
@@ -505,10 +592,132 @@ async function seedOrdersData() {
                 defaultUserId
               ]
             );
+            const newItemId = itemResult.rows[0].id;
+            // Map old item id to new item id (using id_line_item as key if available, otherwise use array index)
+            const itemKey = oldItem.id_line_item || oldItem.id;
+            itemIdMap[itemKey] = newItemId;
             totalItemsMigrated++;
             } catch (error) {
               console.error(`3. Failed to migrate order item ${oldItem.id_line_item} (${oldOrder.email}): ${error.message}`);
               process.exit(1);
+            }
+          }
+
+          // Migrate item-level data based on order flags
+          // Get all new item IDs for this order
+          const allNewItemIds = Object.values(itemIdMap);
+
+          // 1. Migrate after-sales services (if after_services = 1)
+          if (oldOrder.after_services && oldOrder.after_services === 1) {
+            const afterSalesData = await getAfterSalesServices(mysqlConnection, oldOrder.id);
+            if (afterSalesData && allNewItemIds.length > 0) {
+              for (const newItemId of allNewItemIds) {
+                try {
+                  await pgClient.query(
+                    `INSERT INTO item_after_sales (
+                      order_item_id, original_order_item_id, case_type, status,
+                      rma_code, amount, tracking_number, status_tracking,
+                      reason, details, received_date, inquiry_date, created_by, updated_by
+                    ) 
+                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+                    [
+                      newItemId,
+                      null, // original_order_item_id
+                      afterSalesData.case_services || null,
+                      parseIntSafe(afterSalesData.status_case, null),
+                      afterSalesData.code_rma > 0 ? afterSalesData.code_rma.toString() : null,
+                      parseFloatSafe(afterSalesData.amount, 0),
+                      afterSalesData.tracking_number || null,
+                      afterSalesData.status_tracking || null,
+                      afterSalesData.reason || null,
+                      afterSalesData.details_note || null,
+                      parseDate(afterSalesData.date_received),
+                      parseDate(afterSalesData.date_inquiry || afterSalesData.date_created_inquiry),
+                      getValidUserId(afterSalesData.updated_by),
+                      getValidUserId(afterSalesData.updated_by)
+                    ]
+                  );
+                } catch (error) {
+                  console.error(`8. Failed to migrate after-sales for item ${newItemId} (${oldOrder.email}): ${error.message}`);
+                  // Continue with next item instead of exiting
+                }
+              }
+            }
+          }
+
+          // 2. Migrate pre-orders (if pre_order = 1)
+          if (oldOrder.pre_order && oldOrder.pre_order === 1) {
+            const preOrderData = await getPreOrderStatus(mysqlConnection, oldOrder.id);
+            if (preOrderData && allNewItemIds.length > 0) {
+              for (const newItemId of allNewItemIds) {
+                try {
+                  await pgClient.query(
+                    `INSERT INTO item_pre_orders (
+                      order_item_id, status, category, vendor,
+                      hold_until, processing_date, reason, notes,
+                      created_by, updated_by
+                    ) 
+                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+                    [
+                      newItemId,
+                      parseIntSafe(preOrderData.status, null),
+                      preOrderData.category || null,
+                      preOrderData.vendor || null,
+                      parseDate(preOrderData.hold_until),
+                      parseDate(preOrderData.processing_date),
+                      preOrderData.reason || null,
+                      preOrderData.note || null,
+                      getValidUserId(preOrderData.update_by),
+                      getValidUserId(preOrderData.update_by)
+                    ]
+                  );
+                } catch (error) {
+                  console.error(`9. Failed to migrate pre-order for item ${newItemId} (${oldOrder.email}): ${error.message}`);
+                  // Continue with next item instead of exiting
+                }
+              }
+            }
+          }
+
+          // 3. Migrate customization/diamond (if order_diamond = 1)
+          if (oldOrder.order_diamond && oldOrder.order_diamond === 1) {
+            const diamondData = await getDiamondStatus(mysqlConnection, oldOrder.id);
+            if (diamondData && allNewItemIds.length > 0) {
+              for (const newItemId of allNewItemIds) {
+                try {
+                  await pgClient.query(
+                    `INSERT INTO item_customization (
+                      order_item_id, actual_amount, balance_due, payment_status,
+                      design_3d_image, design_status, design_time,
+                      material_status, material_time,
+                      completion_status, completion_time, ship_date,
+                      check_status, third_party_brand, created_by, updated_by
+                    ) 
+                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
+                    [
+                      newItemId,
+                      parseFloatSafe(diamondData.actual_amount, 0),
+                      parseFloatSafe(diamondData.balance_due, 0),
+                      parseIntSafe(diamondData.status_payment, null),
+                      diamondData.img_3d_design || null,
+                      parseIntSafe(diamondData.status_design, null),
+                      parseDate(diamondData.time_design),
+                      parseIntSafe(diamondData.status_material, null),
+                      parseDate(diamondData.time_material),
+                      parseIntSafe(diamondData.status_complete, null),
+                      parseDate(diamondData.time_complete),
+                      parseDate(diamondData.ship_date),
+                      diamondData.check_status || null,
+                      diamondData.third_party_brand === 1,
+                      defaultUserId, // created_by
+                      defaultUserId  // updated_by
+                    ]
+                  );
+                } catch (error) {
+                  console.error(`10. Failed to migrate customization for item ${newItemId} (${oldOrder.email}): ${error.message}`);
+                  // Continue with next item instead of exiting
+                }
+              }
             }
           }
 
@@ -530,7 +739,7 @@ async function seedOrdersData() {
                   oldOrder.payment_method || 'unknown',
                   parseFloatSafe(oldOrder.total, 0),
                   'paid',
-                  null,
+                  '',  // Use empty string instead of null
                   orderDateCreated,  // due_date = date_created của order
                   orderDateCreated,  // paid_date = date_created của order
                   false,  // deposit = false
@@ -556,7 +765,7 @@ async function seedOrdersData() {
                   payment.payment_method || oldOrder.payment_method || 'unknown',
                   parseFloatSafe(payment.amount, 0),  // Parse safely
                   payment.status === 'paid' ? 'paid' : 'pending',
-                  parseIntSafe(payment.id, null) ? parseIntSafe(payment.id).toString() : null,
+                  parseIntSafe(payment.id, null) ? parseIntSafe(payment.id).toString() : '',  // Use empty string instead of null
                   parseDate(payment.due_date),
                   parseDate(payment.paid_date),
                   oldOrder.deposit || false,
@@ -583,9 +792,9 @@ async function seedOrdersData() {
                 [
                   newOrderId,
                   refund.payment_method || oldOrder.payment_method || 'unknown',
-                  parseFloatSafe(refund.amount, 0),  // Refund amount (positive value)
+                  -Math.abs(parseFloatSafe(refund.amount, 0)),  // Luôn lưu số âm cho trường hợp refund
                   'refunded',
-                  parseIntSafe(refund.id, null) ? `refund_${refund.id}` : null,  // transaction_id for refund
+                  parseIntSafe(refund.id, null) ? `refund_${refund.id}` : '',  // Use empty string instead of null
                   parseDate(refund.date_created),  // due_date = date_created của refund
                   parseDate(refund.date_created),  // paid_date = date_created của refund
                   false,  // deposit = false
