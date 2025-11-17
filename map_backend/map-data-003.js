@@ -130,7 +130,7 @@ async function getCustomersFromOldDB() {
       FROM db_customer
       WHERE email != '' AND rank = 'VIP Cus' 
       ORDER BY id
-      LIMIT 100`
+      LIMIT 30`
     );
 
     // Get 20 leads who haven't purchased (qty_paid = 0)
@@ -322,6 +322,7 @@ async function seedCRMData() {
             tenantId
           ]
         );
+        console.log('✅ INSERT INTO crm_customers: Customer ID ${customerResult.rows[0].id} (Old ID: ${oldCustomer.id}, Email: ${oldCustomer.email})');
 
         // 6. Create journey entry if exists
         if (oldCustomer.journey_stage || oldCustomer.emotion || oldCustomer.next_action || oldCustomer.last_summary) {
@@ -450,6 +451,7 @@ async function seedCRMData() {
           ]
         );
         const leadId = leadResult.rows[0].id;
+        console.log('✅ INSERT INTO crm_leads: Lead ID ${leadId} (Old ID: ${oldLead.id}, Email: ${oldLead.email})');
 
         // Update contacts with lead_id
         await pgClient.query(

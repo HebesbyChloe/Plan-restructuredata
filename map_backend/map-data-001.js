@@ -230,13 +230,39 @@ function toUTCString(date) {
 async function clearNewDatabase() {
   try {
     // Delete in reverse order of dependencies
+    // Step 1: Delete order-related tables (they reference sys_stores, sys_users, sys_tenants)
+    // Delete child tables of orders first
+    await pgClient.query('DELETE FROM item_after_sales');
+    await pgClient.query('DELETE FROM item_pre_orders');
+    await pgClient.query('DELETE FROM item_customization');
+    await pgClient.query('DELETE FROM orders_meta');
+    await pgClient.query('DELETE FROM order_meta_crm');
+    await pgClient.query('DELETE FROM order_images');
+    await pgClient.query('DELETE FROM order_payments');
+    // Delete order_items (references orders)
+    await pgClient.query('DELETE FROM order_items');
+    // Delete orders (references sys_stores, sys_users, sys_tenants)
+    await pgClient.query('DELETE FROM orders');
+    
+    // Step 2: Delete other business tables that might reference system tables
+    // (Add more tables here if they have FK to sys_* tables)
+    
+    // Step 3: Delete system relationship tables
     await pgClient.query('DELETE FROM sys_user_roles');
     await pgClient.query('DELETE FROM sys_role_permissions');
-    await pgClient.query('DELETE FROM sys_users');
-    await pgClient.query('DELETE FROM sys_roles');
+    
+    // Step 4: Delete stores and brands BEFORE users (they reference users via created_by, updated_by, manager_user_id)
     await pgClient.query('DELETE FROM sys_stores');
     await pgClient.query('DELETE FROM sys_brands');
+    
+    // Step 5: Now safe to delete users (no other tables reference them)
+    await pgClient.query('DELETE FROM sys_users');
+    
+    // Step 6: Delete roles and tenants
+    await pgClient.query('DELETE FROM sys_roles');
     await pgClient.query('DELETE FROM sys_tenants');
+    
+    // Step 7: Delete permissions (global, no dependencies)
     await pgClient.query('DELETE FROM sys_permissions');
 
     // Reset identity sequences

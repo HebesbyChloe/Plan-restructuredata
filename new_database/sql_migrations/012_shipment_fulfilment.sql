@@ -14,7 +14,7 @@
 -- 1. logistic_vendors
 CREATE TABLE IF NOT EXISTS logistic_vendors (
     id SERIAL PRIMARY KEY,
-    tenant_id INTEGER NOT NULL DEFAULT 1,
+    tenant_id BIGINT NOT NULL DEFAULT 1,
     code VARCHAR(50) NOT NULL,
     name VARCHAR(255) NOT NULL,
     contact_info JSONB NULL,
@@ -51,7 +51,7 @@ CREATE INDEX IF NOT EXISTS idx_vendors_contact_info ON logistic_vendors USING GI
 -- 2. logistic_inbounds
 CREATE TABLE IF NOT EXISTS logistic_inbounds (
     id SERIAL PRIMARY KEY,
-    tenant_id INTEGER NOT NULL DEFAULT 1,
+    tenant_id BIGINT NOT NULL DEFAULT 1,
     code VARCHAR(255) NOT NULL,
     outbound_code VARCHAR(255) NULL,
     hub_id INTEGER NULL,
@@ -99,7 +99,7 @@ CREATE INDEX IF NOT EXISTS idx_inbound_shipments_dates ON logistic_inbounds(ship
 -- 3. logistic_outbounds
 CREATE TABLE IF NOT EXISTS logistic_outbounds (
     id SERIAL PRIMARY KEY,
-    tenant_id INTEGER NOT NULL DEFAULT 1,
+    tenant_id BIGINT NOT NULL DEFAULT 1,
     code VARCHAR(255) NOT NULL,
     status INTEGER NULL,
     ship_date DATE NULL,
@@ -135,16 +135,14 @@ CREATE INDEX IF NOT EXISTS idx_outbound_shipments_status ON logistic_outbounds(s
 CREATE INDEX IF NOT EXISTS idx_outbound_shipments_tenant ON logistic_outbounds(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_outbound_shipments_dates ON logistic_outbounds(ship_date, estimated_arrival_date, delivery_date);
 
--- 4. logistic_items
-CREATE TABLE IF NOT EXISTS logistic_items (
+-- 4. logistic_items_inbound
+CREATE TABLE IF NOT EXISTS logistic_items_inbound (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    tenant_id INTEGER NOT NULL DEFAULT 1,
-    direction TEXT NOT NULL,
+    tenant_id BIGINT NOT NULL DEFAULT 1,
+    inbound_id INTEGER NOT NULL,
     order_id BIGINT NULL,
     movement_id UUID NULL,
     po_id BIGINT NULL,
-    inbound_id INTEGER NULL,
-    outbound_id INTEGER NULL,
     product_id TEXT NOT NULL,
     sku TEXT NULL,
     quantity INTEGER NOT NULL,
@@ -155,46 +153,78 @@ CREATE TABLE IF NOT EXISTS logistic_items (
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     
-    CONSTRAINT chk_logistic_items_direction CHECK (direction IN ('in', 'out')),
-    CONSTRAINT chk_logistic_items_quantity CHECK (quantity > 0),
-    CONSTRAINT chk_logistic_items_direction_refs CHECK (
-        (direction = 'in' AND outbound_id IS NULL) OR
-        (direction = 'out' AND inbound_id IS NULL)
-    )
+    CONSTRAINT chk_logistic_items_inbound_quantity CHECK (quantity > 0)
 );
 
-COMMENT ON TABLE logistic_items IS 'Individual items in logistics movements (inbound/outbound)';
-COMMENT ON COLUMN logistic_items.direction IS 'Movement direction: in (inbound) or out (outbound)';
-COMMENT ON COLUMN logistic_items.product_id IS 'Product identifier (text format)';
+COMMENT ON TABLE logistic_items_inbound IS 'Individual items in inbound logistics movements';
+COMMENT ON COLUMN logistic_items_inbound.inbound_id IS 'Reference to inbound shipment';
+COMMENT ON COLUMN logistic_items_inbound.product_id IS 'Product identifier (text format)';
 
 -- Foreign Keys
-ALTER TABLE logistic_items 
-    ADD CONSTRAINT fk_logistic_items_tenant_id 
+ALTER TABLE logistic_items_inbound 
+    ADD CONSTRAINT fk_logistic_items_inbound_tenant_id 
     FOREIGN KEY (tenant_id) REFERENCES sys_tenants(id) ON DELETE CASCADE;
     
-ALTER TABLE logistic_items 
-    ADD CONSTRAINT fk_logistic_items_inbound_id 
-    FOREIGN KEY (inbound_id) REFERENCES logistic_inbounds(id) ON DELETE SET NULL;
-    
-ALTER TABLE logistic_items 
-    ADD CONSTRAINT fk_logistic_items_outbound_id 
-    FOREIGN KEY (outbound_id) REFERENCES logistic_outbounds(id) ON DELETE SET NULL;
+ALTER TABLE logistic_items_inbound 
+    ADD CONSTRAINT fk_logistic_items_inbound_inbound_id 
+    FOREIGN KEY (inbound_id) REFERENCES logistic_inbounds(id) ON DELETE CASCADE;
 
 -- Note: order_id FK will be added after orders table is created
 
 -- Indexes
-CREATE INDEX IF NOT EXISTS idx_log_items_tenant ON logistic_items(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_log_items_order ON logistic_items(order_id);
-CREATE INDEX IF NOT EXISTS idx_log_items_product ON logistic_items(product_id);
-CREATE INDEX IF NOT EXISTS idx_log_items_direction ON logistic_items(direction);
-CREATE INDEX IF NOT EXISTS idx_log_items_inbound ON logistic_items(inbound_id);
-CREATE INDEX IF NOT EXISTS idx_log_items_outbound ON logistic_items(outbound_id);
+CREATE INDEX IF NOT EXISTS idx_log_items_inbound_tenant ON logistic_items_inbound(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_log_items_inbound_order ON logistic_items_inbound(order_id);
+CREATE INDEX IF NOT EXISTS idx_log_items_inbound_product ON logistic_items_inbound(product_id);
+CREATE INDEX IF NOT EXISTS idx_log_items_inbound_inbound ON logistic_items_inbound(inbound_id);
+CREATE INDEX IF NOT EXISTS idx_log_items_inbound_sku ON logistic_items_inbound(sku) WHERE sku IS NOT NULL;
+
+-- 5. logistic_items_outbound
+CREATE TABLE IF NOT EXISTS logistic_items_outbound (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id BIGINT NOT NULL DEFAULT 1,
+    outbound_id INTEGER NOT NULL,
+    order_id BIGINT NULL,
+    movement_id UUID NULL,
+    product_id TEXT NOT NULL,
+    sku TEXT NULL,
+    quantity INTEGER NOT NULL,
+    code TEXT NULL,
+    item_type TEXT NULL,
+    notes TEXT NULL,
+    processed_at TIMESTAMPTZ NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    
+    CONSTRAINT chk_logistic_items_outbound_quantity CHECK (quantity > 0)
+);
+
+COMMENT ON TABLE logistic_items_outbound IS 'Individual items in outbound logistics movements';
+COMMENT ON COLUMN logistic_items_outbound.outbound_id IS 'Reference to outbound shipment';
+COMMENT ON COLUMN logistic_items_outbound.product_id IS 'Product identifier (text format)';
+
+-- Foreign Keys
+ALTER TABLE logistic_items_outbound 
+    ADD CONSTRAINT fk_logistic_items_outbound_tenant_id 
+    FOREIGN KEY (tenant_id) REFERENCES sys_tenants(id) ON DELETE CASCADE;
+    
+ALTER TABLE logistic_items_outbound 
+    ADD CONSTRAINT fk_logistic_items_outbound_outbound_id 
+    FOREIGN KEY (outbound_id) REFERENCES logistic_outbounds(id) ON DELETE CASCADE;
+
+-- Note: order_id FK will be added after orders table is created
+
+-- Indexes
+CREATE INDEX IF NOT EXISTS idx_log_items_outbound_tenant ON logistic_items_outbound(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_log_items_outbound_order ON logistic_items_outbound(order_id);
+CREATE INDEX IF NOT EXISTS idx_log_items_outbound_product ON logistic_items_outbound(product_id);
+CREATE INDEX IF NOT EXISTS idx_log_items_outbound_outbound ON logistic_items_outbound(outbound_id);
+CREATE INDEX IF NOT EXISTS idx_log_items_outbound_sku ON logistic_items_outbound(sku) WHERE sku IS NOT NULL;
 
 -- ----------------------------------------------------------------------------
 -- FULFILMENT TABLES
 -- ----------------------------------------------------------------------------
 
--- 5. shipment_statuses
+-- 6. shipment_statuses
 CREATE TABLE IF NOT EXISTS shipment_statuses (
     id SERIAL PRIMARY KEY,
     code VARCHAR(50) NOT NULL,
@@ -213,10 +243,10 @@ COMMENT ON COLUMN shipment_statuses.code IS 'Unique status code (e.g., pending, 
 CREATE INDEX IF NOT EXISTS idx_shipment_statuses_code ON shipment_statuses(code);
 CREATE INDEX IF NOT EXISTS idx_shipment_statuses_active ON shipment_statuses(is_active) WHERE is_active = TRUE;
 
--- 6. fulfilment_batches
+-- 7. fulfilment_batches
 CREATE TABLE IF NOT EXISTS fulfilment_batches (
     id SERIAL PRIMARY KEY,
-    tenant_id INTEGER NOT NULL DEFAULT 1,
+    tenant_id BIGINT NOT NULL DEFAULT 1,
     name VARCHAR(200) NULL,
     status INTEGER NULL,
     ship_date DATE NULL,
@@ -241,7 +271,7 @@ CREATE INDEX IF NOT EXISTS idx_fulfilment_batches_tenant ON fulfilment_batches(t
 CREATE INDEX IF NOT EXISTS idx_fulfilment_batches_status ON fulfilment_batches(status);
 CREATE INDEX IF NOT EXISTS idx_fulfilment_batches_ship_date ON fulfilment_batches(ship_date);
 
--- 7. fulfilment_batches_meta
+-- 8. fulfilment_batches_meta
 CREATE TABLE IF NOT EXISTS fulfilment_batches_meta (
     batch_id INTEGER PRIMARY KEY,
     current_status INTEGER NULL,
@@ -267,10 +297,10 @@ ALTER TABLE fulfilment_batches_meta
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_fulfilment_batches_meta_status ON fulfilment_batches_meta(current_status);
 
--- 8. fulfilment_shipments
+-- 9. fulfilment_shipments
 CREATE TABLE IF NOT EXISTS fulfilment_shipments (
     id SERIAL PRIMARY KEY,
-    tenant_id INTEGER NOT NULL DEFAULT 1,
+    tenant_id BIGINT NOT NULL DEFAULT 1,
     shipment_number VARCHAR(200) NOT NULL,
     ship_from_location VARCHAR(200) NULL,
     ship_to_name VARCHAR(200) NULL,
@@ -355,7 +385,7 @@ CREATE INDEX IF NOT EXISTS idx_fulfilment_shipments_batch_id ON fulfilment_shipm
 CREATE INDEX IF NOT EXISTS idx_fulfilment_shipments_tracking_number ON fulfilment_shipments(tracking_number);
 CREATE INDEX IF NOT EXISTS idx_fulfilment_shipments_dates ON fulfilment_shipments(ship_date, estimated_delivery_date, actual_delivery_date);
 
--- 9. shipment_line_items
+-- 10. shipment_line_items
 CREATE TABLE IF NOT EXISTS shipment_line_items (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     line_item_id INTEGER NOT NULL,
@@ -381,7 +411,7 @@ CREATE INDEX IF NOT EXISTS idx_shipment_line_items_line_item ON shipment_line_it
 CREATE INDEX IF NOT EXISTS idx_shipment_line_items_shipment ON shipment_line_items(shipment_id);
 CREATE INDEX IF NOT EXISTS idx_shipment_line_items_shipment_line_item ON shipment_line_items(shipment_id, line_item_id);
 
--- 10. shipment_orders
+-- 11. shipment_orders
 CREATE TABLE IF NOT EXISTS shipment_orders (
     shipment_id INTEGER NOT NULL,
     order_id BIGINT NOT NULL,
@@ -407,10 +437,10 @@ CREATE INDEX IF NOT EXISTS idx_shipment_orders_order ON shipment_orders(order_id
 -- INVENTORY MOVEMENTS
 -- ----------------------------------------------------------------------------
 
--- 11. inv_movements
+-- 12. inv_movements
 CREATE TABLE IF NOT EXISTS inv_movements (
     id BIGSERIAL PRIMARY KEY,
-    tenant_id INTEGER NOT NULL DEFAULT 1,
+    tenant_id BIGINT NOT NULL DEFAULT 1,
     movement_type VARCHAR(50) NULL,
     movement_date TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     reference_number VARCHAR(200) NULL,
@@ -424,7 +454,7 @@ CREATE TABLE IF NOT EXISTS inv_movements (
     quantity_after INTEGER NULL,
     unit_cost NUMERIC(12,2) NULL,
     order_id BIGINT NULL,
-    order_line_item_id INTEGER NULL,
+    order_line_item_id BIGINT NULL,
     shipment_id INTEGER NULL,
     inbound_shipment_id INTEGER NULL,
     outbound_shipment_id INTEGER NULL,
@@ -502,9 +532,15 @@ CREATE TRIGGER trg_logistic_outbounds_updated_at
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
 
--- Auto-update updated_at timestamp for logistic_items
-CREATE TRIGGER trg_logistic_items_updated_at
-    BEFORE UPDATE ON logistic_items
+-- Auto-update updated_at timestamp for logistic_items_inbound
+CREATE TRIGGER trg_logistic_items_inbound_updated_at
+    BEFORE UPDATE ON logistic_items_inbound
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+-- Auto-update updated_at timestamp for logistic_items_outbound
+CREATE TRIGGER trg_logistic_items_outbound_updated_at
+    BEFORE UPDATE ON logistic_items_outbound
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
 
@@ -528,7 +564,8 @@ CREATE TRIGGER trg_shipment_line_items_updated_at
 
 -- ============================================================================
 -- Note: Foreign keys from:
---       - logistic_items.order_id to orders.id
+--       - logistic_items_inbound.order_id to orders.id
+--       - logistic_items_outbound.order_id to orders.id
 --       - shipment_line_items.line_item_id to order_line_items_properties.id
 --       - shipment_orders.order_id to orders.id
 --       - inv_movements.from_location_id, to_location_id to locations.id
