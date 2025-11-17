@@ -17,6 +17,8 @@ CREATE TABLE IF NOT EXISTS department (
     name VARCHAR(256) NOT NULL,
     description TEXT NULL,
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_by BIGINT NULL,
+    updated_by BIGINT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     
@@ -26,16 +28,28 @@ CREATE TABLE IF NOT EXISTS department (
 
 COMMENT ON TABLE department IS 'Department/division management with unique codes';
 COMMENT ON COLUMN department.code IS 'Unique code (e.g., SALES, HR, IT)';
+COMMENT ON COLUMN department.created_by IS 'Staff member who created this department';
+COMMENT ON COLUMN department.updated_by IS 'Staff member who last updated this department';
 
 -- Foreign Keys
 ALTER TABLE department 
     ADD CONSTRAINT fk_department_tenant_id 
     FOREIGN KEY (tenant_id) REFERENCES sys_tenants(id) ON DELETE CASCADE;
+    
+ALTER TABLE department 
+    ADD CONSTRAINT fk_department_created_by 
+    FOREIGN KEY (created_by) REFERENCES sys_users(id) ON DELETE SET NULL;
+    
+ALTER TABLE department 
+    ADD CONSTRAINT fk_department_updated_by 
+    FOREIGN KEY (updated_by) REFERENCES sys_users(id) ON DELETE SET NULL;
 
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_department_tenant ON department(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_department_code_tenant ON department(tenant_id, code);
 CREATE INDEX IF NOT EXISTS idx_department_active ON department(tenant_id, is_active) WHERE is_active = TRUE;
+CREATE INDEX IF NOT EXISTS idx_department_created_by ON department(created_by);
+CREATE INDEX IF NOT EXISTS idx_department_updated_by ON department(updated_by);
 
 -- 2. performance_criteria
 CREATE TABLE IF NOT EXISTS performance_criteria (
@@ -48,6 +62,8 @@ CREATE TABLE IF NOT EXISTS performance_criteria (
     weight NUMERIC(5,2) NOT NULL DEFAULT 0,
     max_score NUMERIC(5,2) NOT NULL DEFAULT 100,
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_by BIGINT NULL,
+    updated_by BIGINT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     
@@ -61,6 +77,8 @@ COMMENT ON TABLE performance_criteria IS 'Performance evaluation criteria (globa
 COMMENT ON COLUMN performance_criteria.department_id IS 'NULL = global criteria, NOT NULL = department-specific';
 COMMENT ON COLUMN performance_criteria.type IS 'Criteria type: quantitative, qualitative';
 COMMENT ON COLUMN performance_criteria.weight IS 'Percentage (0-100)';
+COMMENT ON COLUMN performance_criteria.created_by IS 'Staff member who created this criteria';
+COMMENT ON COLUMN performance_criteria.updated_by IS 'Staff member who last updated this criteria';
 
 -- Foreign Keys
 ALTER TABLE performance_criteria 
@@ -70,6 +88,14 @@ ALTER TABLE performance_criteria
 ALTER TABLE performance_criteria 
     ADD CONSTRAINT fk_performance_criteria_department_id 
     FOREIGN KEY (department_id) REFERENCES department(id) ON DELETE SET NULL;
+    
+ALTER TABLE performance_criteria 
+    ADD CONSTRAINT fk_performance_criteria_created_by 
+    FOREIGN KEY (created_by) REFERENCES sys_users(id) ON DELETE SET NULL;
+    
+ALTER TABLE performance_criteria 
+    ADD CONSTRAINT fk_performance_criteria_updated_by 
+    FOREIGN KEY (updated_by) REFERENCES sys_users(id) ON DELETE SET NULL;
 
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_performance_criteria_tenant ON performance_criteria(tenant_id);
@@ -78,6 +104,8 @@ CREATE INDEX IF NOT EXISTS idx_performance_criteria_type ON performance_criteria
 CREATE INDEX IF NOT EXISTS idx_performance_criteria_active ON performance_criteria(tenant_id, is_active) WHERE is_active = TRUE;
 CREATE INDEX IF NOT EXISTS idx_performance_criteria_tenant_department ON performance_criteria(tenant_id, department_id);
 CREATE INDEX IF NOT EXISTS idx_performance_criteria_global ON performance_criteria(tenant_id) WHERE department_id IS NULL;
+CREATE INDEX IF NOT EXISTS idx_performance_criteria_created_by ON performance_criteria(created_by);
+CREATE INDEX IF NOT EXISTS idx_performance_criteria_updated_by ON performance_criteria(updated_by);
 
 -- 3. performance_evaluation
 CREATE TABLE IF NOT EXISTS performance_evaluation (
@@ -167,6 +195,7 @@ CREATE TABLE IF NOT EXISTS performance_score (
 );
 
 COMMENT ON TABLE performance_score IS 'Detailed scores for each criteria in an evaluation';
+COMMENT ON COLUMN performance_score.score IS 'Score value (must be <= criteria.max_score)';
 
 -- Foreign Keys
 ALTER TABLE performance_score 
@@ -202,7 +231,10 @@ CREATE TABLE IF NOT EXISTS leave_type (
     requires_approval BOOLEAN NOT NULL DEFAULT TRUE,
     is_paid BOOLEAN NOT NULL DEFAULT FALSE,
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_by BIGINT NULL,
+    updated_by BIGINT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     
     CONSTRAINT chk_leave_type_code CHECK (code != ''),
     CONSTRAINT uq_leave_type_tenant_code UNIQUE (tenant_id, code)
@@ -210,16 +242,28 @@ CREATE TABLE IF NOT EXISTS leave_type (
 
 COMMENT ON TABLE leave_type IS 'Leave type lookup table (normalized)';
 COMMENT ON COLUMN leave_type.code IS 'Unique code (e.g., sick, vacation, personal)';
+COMMENT ON COLUMN leave_type.created_by IS 'Staff member who created this leave type';
+COMMENT ON COLUMN leave_type.updated_by IS 'Staff member who last updated this leave type';
 
 -- Foreign Keys
 ALTER TABLE leave_type 
     ADD CONSTRAINT fk_leave_type_tenant_id 
     FOREIGN KEY (tenant_id) REFERENCES sys_tenants(id) ON DELETE CASCADE;
+    
+ALTER TABLE leave_type 
+    ADD CONSTRAINT fk_leave_type_created_by 
+    FOREIGN KEY (created_by) REFERENCES sys_users(id) ON DELETE SET NULL;
+    
+ALTER TABLE leave_type 
+    ADD CONSTRAINT fk_leave_type_updated_by 
+    FOREIGN KEY (updated_by) REFERENCES sys_users(id) ON DELETE SET NULL;
 
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_leave_type_tenant ON leave_type(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_leave_type_code_tenant ON leave_type(tenant_id, code);
 CREATE INDEX IF NOT EXISTS idx_leave_type_active ON leave_type(tenant_id, is_active) WHERE is_active = TRUE;
+CREATE INDEX IF NOT EXISTS idx_leave_type_created_by ON leave_type(created_by);
+CREATE INDEX IF NOT EXISTS idx_leave_type_updated_by ON leave_type(updated_by);
 
 -- 6. schedule
 CREATE TABLE IF NOT EXISTS schedule (
@@ -336,7 +380,6 @@ CREATE TABLE IF NOT EXISTS schedule_revision (
     tenant_id BIGINT NOT NULL,
     revision_type VARCHAR(256) NOT NULL DEFAULT '',
     updated_by_id BIGINT NULL,
-    updated_by_name VARCHAR(256) DEFAULT '',
     start_date DATE NULL,
     end_date DATE NULL,
     description TEXT NULL,
@@ -346,6 +389,7 @@ CREATE TABLE IF NOT EXISTS schedule_revision (
 );
 
 COMMENT ON TABLE schedule_revision IS 'Schedule revision history';
+COMMENT ON COLUMN schedule_revision.updated_by_id IS 'Staff member who created this revision';
 
 -- Foreign Keys
 ALTER TABLE schedule_revision 
@@ -404,8 +448,12 @@ ALTER TABLE schedule_revision_detail
 ALTER TABLE schedule_revision_detail 
     ADD CONSTRAINT fk_schedule_revision_detail_leave_type_id 
     FOREIGN KEY (leave_type_id) REFERENCES leave_type(id) ON DELETE SET NULL;
+    
+ALTER TABLE schedule_revision_detail 
+    ADD CONSTRAINT fk_schedule_revision_detail_schedule_id 
+    FOREIGN KEY (schedule_id) REFERENCES schedule(id) ON DELETE SET NULL;
 
--- Note: schedule_id and shift_report_id FKs will be added after those tables are created
+-- Note: shift_report_id FK will be added after shift_report table is created
 
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_schedule_revision_detail_tenant ON schedule_revision_detail(tenant_id);
@@ -515,6 +563,41 @@ CREATE TRIGGER trg_schedule_preferences_updated_at
     BEFORE UPDATE ON schedule_preferences
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
+
+-- Auto-update updated_at timestamp for leave_type
+CREATE TRIGGER trg_leave_type_updated_at
+    BEFORE UPDATE ON leave_type
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+-- ----------------------------------------------------------------------------
+-- Functions
+-- ----------------------------------------------------------------------------
+
+-- Function to validate performance_score <= criteria.max_score
+CREATE OR REPLACE FUNCTION check_performance_score_max()
+RETURNS TRIGGER AS $$
+DECLARE
+    max_score_value NUMERIC(5,2);
+BEGIN
+    SELECT max_score INTO max_score_value
+    FROM performance_criteria
+    WHERE id = NEW.criteria_id;
+    
+    IF max_score_value IS NOT NULL AND NEW.score > max_score_value THEN
+        RAISE EXCEPTION 'Score % exceeds maximum score % for criteria %', 
+            NEW.score, max_score_value, NEW.criteria_id;
+    END IF;
+    
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Trigger to validate performance_score <= criteria.max_score
+CREATE TRIGGER trg_performance_score_max_check
+    BEFORE INSERT OR UPDATE ON performance_score
+    FOR EACH ROW
+    EXECUTE FUNCTION check_performance_score_max();
 
 -- ============================================================================
 -- Note: Foreign keys from schedule.shift_report_id and 
