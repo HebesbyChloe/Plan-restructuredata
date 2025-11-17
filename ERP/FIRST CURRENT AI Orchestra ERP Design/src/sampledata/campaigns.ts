@@ -1,0 +1,116 @@
+/**
+ * Mock Campaign Data
+ * 
+ * NOTE: This file is kept for backward compatibility during migration.
+ * Eventually, all data should come from Supabase queries via the mappers.
+ * 
+ * Updated to match new Campaign interface:
+ * - Use 'paid-ads' instead of 'ads'
+ * - Use Date objects for dates
+ * - Include ownerId field
+ * - Match database status values
+ */
+
+import { Campaign } from "../types/modules/marketing";
+
+export const mockCampaigns: Campaign[] = [
+  {
+    id: "1",
+    name: "Summer Sale 2025",
+    type: "email",
+    status: "in-progress",
+    startDate: new Date("2025-06-01"),
+    endDate: new Date("2025-08-31"),
+    budget: 5000,
+    spent: 3200,
+    impressions: 45000,
+    clicks: 2300,
+    conversions: 180,
+    revenue: 12500,
+    owner: "Marketing Team",
+    ownerId: 1,
+    priority: "high",
+    progress: 64,
+    reach: 45000,
+    reachGoal: 100000,
+    engagement: 5.1,
+    engagementGoal: 8.0,
+    channels: ["Email", "Instagram", "Facebook"],
+    tags: ["sale", "summer", "discount"],
+    description: "Summer collection promotional campaign",
+  },
+  {
+    id: "2",
+    name: "VIP Customer Appreciation",
+    type: "email",
+    status: "completed",
+    startDate: new Date("2025-05-15"),
+    endDate: new Date("2025-05-31"),
+    budget: 2000,
+    spent: 1800,
+    impressions: 1200,
+    clicks: 450,
+    conversions: 95,
+    revenue: 18500,
+    owner: "Marketing Team",
+    ownerId: 1,
+    priority: "medium",
+    progress: 100,
+    reach: 1200,
+    reachGoal: 1500,
+    engagement: 37.5,
+    engagementGoal: 30.0,
+    channels: ["Email"],
+    tags: ["vip", "appreciation", "loyalty"],
+    description: "Exclusive offers for VIP customers",
+  },
+  {
+    id: "3",
+    name: "Instagram Influencer Collab",
+    type: "social",
+    status: "in-progress",
+    startDate: new Date("2025-09-01"),
+    endDate: new Date("2025-10-31"),
+    budget: 8000,
+    spent: 4500,
+    impressions: 125000,
+    clicks: 5600,
+    conversions: 320,
+    revenue: 28000,
+    owner: "Marketing Team",
+    ownerId: 1,
+    priority: "high",
+    progress: 56,
+    reach: 125000,
+    reachGoal: 200000,
+    engagement: 4.5,
+    engagementGoal: 5.0,
+    channels: ["Instagram"],
+    tags: ["influencer", "awareness", "ugc"],
+    description: "Partnership with top jewelry influencers",
+  },
+  {
+    id: "4",
+    name: "Facebook Ads - Prosperity Collection",
+    type: "paid-ads", // Updated from 'ads' to 'paid-ads'
+    status: "in-progress",
+    startDate: new Date("2025-09-15"),
+    budget: 3000,
+    spent: 1200,
+    impressions: 35000,
+    clicks: 1400,
+    conversions: 78,
+    revenue: 6800,
+    owner: "Marketing Team",
+    ownerId: 1,
+    priority: "medium",
+    progress: 40,
+    reach: 35000,
+    reachGoal: 100000,
+    engagement: 4.0,
+    engagementGoal: 5.0,
+    channels: ["Facebook", "Instagram"],
+    tags: ["ads", "prosperity", "feng-shui"],
+    description: "Paid ads for prosperity-themed jewelry",
+  },
+];

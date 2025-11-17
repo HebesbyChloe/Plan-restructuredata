@@ -1,0 +1,1286 @@
+// Enhanced Shipment Data Structure
+// Links to: Orders, Batches, Products
+// Note: One order can have multiple shipments (split shipments)
+
+export interface ShipmentItem {
+  id: string;
+  orderLineItemId: string; // Links back to order line item
+  productId: string;
+  sku: string;
+  name: string;
+  quantity: number;
+  image?: string;
+  warehouseLocation?: string; // e.g., "A-12-3"
+  picked: boolean;
+  packed: boolean;
+  pickedAt?: string;
+  packedAt?: string;
+  pickedBy?: string;
+  packedBy?: string;
+}
+
+export interface ShipmentEnhanced {
+  id: string;
+  shipmentNumber: string;
+  // Order Reference
+  orderId: string;
+  orderNumber: string;
+  orderAmount: number; // Total order amount
+  // Batch Reference (optional - shipments can be in batches)
+  batchId?: string;
+  batchName?: string;
+  // Customer Info
+  customerId: string;
+  customerName: string;
+  customerEmail: string;
+  customerPhone: string;
+  // Shipping Address
+  shippingAddress: {
+    street: string;
+    city: string;
+    state: string;
+    zipCode: string;
+    country: string;
+  };
+  // Shipment Items
+  items: ShipmentItem[];
+  // Carrier & Tracking
+  carrier: "USPS" | "UPS" | "FedEx" | "DHL" | "VN Post" | "DPD" | "GLS";
+  trackingNumber?: string;
+  trackingUrl?: string;
+  shippingMethod: "standard" | "express" | "overnight" | "international";
+  // Package Details
+  packageWeight: number; // in kg
+  packageDimensions: {
+    length: number;
+    width: number;
+    height: number;
+  };
+  // Status
+  status: "pending" | "picking" | "picked" | "packing" | "packed" | "ready" | "label-printed" | "shipped" | "in-transit" | "out-for-delivery" | "delivered" | "exception" | "returned";
+  // Warehouse
+  warehouse: "US" | "VN";
+  warehouseLocation?: string;
+  // Costs
+  shippingCost: number;
+  insuranceValue?: number;
+  // Dates
+  createdDate: string;
+  pickStartDate?: string;
+  pickCompletedDate?: string;
+  packStartDate?: string;
+  packCompletedDate?: string;
+  labelPrintedDate?: string;
+  shipDate?: string;
+  estimatedDelivery?: string;
+  actualDelivery?: string;
+  lastScanDate?: string;
+  lastScanLocation?: string;
+  // Priority & Labels
+  priority: "low" | "normal" | "high" | "urgent";
+  labelPrinted: boolean;
+  packingSlipPrinted: boolean;
+  customsFormPrinted?: boolean;
+  // Tags - Shipping tags (fragile, rush, gift, etc.)
+  tags?: string[];
+  // Sales Rep
+  saleRep?: string;
+  // Alerts - Order-specific alerts
+  alerts?: {
+    customerNote?: boolean;
+    addressMissing?: boolean;
+    imageMissing?: boolean;
+    serviceRequest?: boolean;
+    linkedOrders?: boolean;
+    late?: number; // days late
+    refundRequest?: boolean;
+  };
+  // Notes & Metadata
+  notes?: string;
+  internalNotes?: string;
+  packingInstructions?: string;
+  deliveryInstructions?: string;
+  signatureRequired: boolean;
+  insuranceRequired: boolean;
+  // Exception handling
+  exceptionReason?: string;
+  exceptionDate?: string;
+  exceptionResolved?: boolean;
+}
+
+export const mockShipmentsEnhanced: ShipmentEnhanced[] = [
+  {
+    id: "SHP-001",
+    shipmentNumber: "SHP-2025-001",
+    orderId: "1",
+    orderNumber: "666021905",
+    orderAmount: 200,
+    batchId: "BATCH-001",
+    batchName: "US1101-01",
+    customerId: "1",
+    customerName: "Ha Tu Tran",
+    customerEmail: "hatu@email.com",
+    customerPhone: "+1-555-0123",
+    shippingAddress: {
+      street: "123 Main Street, Apt 4B",
+      city: "New York",
+      state: "NY",
+      zipCode: "10001",
+      country: "USA",
+    },
+    items: [
+      {
+        id: "SHPITEM-001",
+        orderLineItemId: "LINE-001",
+        productId: "1",
+        sku: "JW-GLD-001",
+        name: "Golden Lotus Bracelet",
+        quantity: 2,
+        image: "https://images.unsplash.com/photo-1611591437281-460bfbe1220a?w=200",
+        warehouseLocation: "A-12-3",
+        picked: true,
+        packed: true,
+        pickedAt: "2025-10-11T12:00:00",
+        packedAt: "2025-10-11T14:00:00",
+        pickedBy: "John Doe",
+        packedBy: "Jane Smith",
+      },
+    ],
+    carrier: "UPS",
+    trackingNumber: "1Z999AA10123456784",
+    trackingUrl: "https://www.ups.com/track?tracknum=1Z999AA10123456784",
+    shippingMethod: "express",
+    packageWeight: 0.5,
+    packageDimensions: {
+      length: 30,
+      width: 20,
+      height: 10,
+    },
+    status: "in-transit",
+    warehouse: "US",
+    warehouseLocation: "Dock-B",
+    shippingCost: 12.50,
+    insuranceValue: 100.00,
+    createdDate: "2025-10-11T10:30:00",
+    pickStartDate: "2025-10-11T11:30:00",
+    pickCompletedDate: "2025-10-11T12:00:00",
+    packStartDate: "2025-10-11T13:30:00",
+    packCompletedDate: "2025-10-11T14:00:00",
+    labelPrintedDate: "2025-10-11T14:30:00",
+    shipDate: "2025-10-11T15:00:00",
+    estimatedDelivery: "2025-11-04",
+    lastScanDate: "2025-11-02T16:30:00",
+    lastScanLocation: "New York, NY - In Transit",
+    priority: "high",
+    labelPrinted: true,
+    packingSlipPrinted: true,
+    signatureRequired: false,
+    insuranceRequired: true,
+    tags: ["signature"],
+    saleRep: "Hang Tran",
+    alerts: {
+      customerNote: true,
+    },
+    deliveryInstructions: "Leave at front desk",
+  },
+  {
+    id: "SHP-002",
+    shipmentNumber: "SHP-2025-002",
+    orderId: "2",
+    orderNumber: "666021906",
+    orderAmount: 1500,
+    customerId: "2",
+    customerName: "Duy Vo",
+    customerEmail: "duyvo@email.com",
+    customerPhone: "+1-555-0125",
+    shippingAddress: {
+      street: "789 Pine Road",
+      city: "Miami",
+      state: "FL",
+      zipCode: "33101",
+      country: "USA",
+    },
+    items: [
+      {
+        id: "SHPITEM-002",
+        orderLineItemId: "LINE-004",
+        productId: "2",
+        sku: "JW-SLV-002",
+        name: "Moonlight Pearl Necklace",
+        quantity: 1,
+        image: "https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?w=200",
+        warehouseLocation: "A-12-3",
+        picked: false,
+        packed: false,
+      },
+      {
+        id: "SHPITEM-002B",
+        orderLineItemId: "LINE-004B",
+        productId: "3",
+        sku: "JW-RG-003",
+        name: "Rose Quartz Ring",
+        quantity: 2,
+        image: "https://images.unsplash.com/photo-1605100804763-247f67b3557e?w=200",
+        warehouseLocation: "C-08-2",
+        picked: false,
+        packed: false,
+      },
+      {
+        id: "SHPITEM-002C",
+        orderLineItemId: "LINE-004C",
+        productId: "1",
+        sku: "JW-GLD-001",
+        name: "Golden Lotus Bracelet",
+        quantity: 1,
+        image: "https://images.unsplash.com/photo-1611591437281-460bfbe1220a?w=200",
+        warehouseLocation: "A-12-3",
+        picked: false,
+        packed: false,
+      },
+    ],
+    carrier: "FedEx",
+    shippingMethod: "overnight",
+    packageWeight: 0.8,
+    packageDimensions: {
+      length: 35,
+      width: 25,
+      height: 12,
+    },
+    status: "pending",
+    warehouse: "US",
+    shippingCost: 25.00,
+    insuranceValue: 200.00,
+    createdDate: "2025-11-02T14:20:00",
+    estimatedDelivery: "2025-11-03",
+    priority: "urgent",
+    labelPrinted: false,
+    packingSlipPrinted: false,
+    signatureRequired: true,
+    insuranceRequired: true,
+    tags: ["rush", "insurance"],
+    saleRep: "Ngoc Vo",
+    alerts: {
+      imageMissing: true,
+      addressMissing: true,
+    },
+    packingInstructions: "Fragile - Handle with care",
+  },
+  {
+    id: "SHP-003",
+    shipmentNumber: "SHP-2025-003",
+    orderId: "3",
+    orderNumber: "555005163A",
+    orderAmount: 450,
+    batchId: "BATCH-002",
+    batchName: "US1102-01",
+    customerId: "3",
+    customerName: "Hai Lam",
+    customerEmail: "hailam@email.com",
+    customerPhone: "+1-555-0124",
+    shippingAddress: {
+      street: "456 Oak Avenue",
+      city: "Los Angeles",
+      state: "CA",
+      zipCode: "90001",
+      country: "USA",
+    },
+    items: [
+      {
+        id: "SHPITEM-003",
+        orderLineItemId: "LINE-002",
+        productId: "2",
+        sku: "JW-SLV-002",
+        name: "Moonlight Pearl Necklace",
+        quantity: 1,
+        image: "https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?w=200",
+        warehouseLocation: "B-05-7",
+        picked: true,
+        packed: false,
+        pickedAt: "2025-11-02T10:15:00",
+        pickedBy: "Tom Wilson",
+      },
+    ],
+    carrier: "USPS",
+    shippingMethod: "standard",
+    packageWeight: 0.4,
+    packageDimensions: {
+      length: 25,
+      width: 18,
+      height: 8,
+    },
+    status: "picking",
+    warehouse: "US",
+    shippingCost: 8.99,
+    createdDate: "2025-11-02T09:15:00",
+    pickStartDate: "2025-11-02T10:00:00",
+    estimatedDelivery: "2025-11-08",
+    priority: "normal",
+    labelPrinted: false,
+    packingSlipPrinted: false,
+    signatureRequired: false,
+    insuranceRequired: false,
+    tags: ["fragile"],
+    saleRep: "Hai Lam",
+    notes: "Include care instructions card",
+  },
+  {
+    id: "SHP-004",
+    shipmentNumber: "SHP-2025-004",
+    orderId: "4",
+    orderNumber: "555005163S",
+    orderAmount: 780,
+    batchId: "BATCH-002",
+    batchName: "US1102-01",
+    customerId: "4",
+    customerName: "Tuyet Le",
+    customerEmail: "tuyetle@email.com",
+    customerPhone: "+1-555-0126",
+    shippingAddress: {
+      street: "321 Elm Street",
+      city: "Chicago",
+      state: "IL",
+      zipCode: "60601",
+      country: "USA",
+    },
+    items: [
+      {
+        id: "SHPITEM-005",
+        orderLineItemId: "LINE-006",
+        productId: "5",
+        sku: "JW-SLV-005",
+        name: "Celtic Knot Bracelet",
+        quantity: 1,
+        image: "https://images.unsplash.com/photo-1611591437281-460bfbe1220a?w=200",
+        warehouseLocation: "A-15-1",
+        picked: false,
+        packed: false,
+      },
+    ],
+    carrier: "UPS",
+    shippingMethod: "standard",
+    packageWeight: 0.6,
+    packageDimensions: {
+      length: 28,
+      width: 20,
+      height: 10,
+    },
+    status: "pending",
+    warehouse: "US",
+    shippingCost: 8.99,
+    createdDate: "2025-11-02T11:30:00",
+    estimatedDelivery: "2025-11-07",
+    priority: "normal",
+    labelPrinted: false,
+    packingSlipPrinted: false,
+    signatureRequired: false,
+    insuranceRequired: false,
+    saleRep: "Laura Sale",
+    tags: ["gift"],
+  },
+  {
+    id: "SHP-005",
+    shipmentNumber: "SHP-2025-005",
+    orderId: "5",
+    orderNumber: "555005163Z",
+    orderAmount: 320,
+    customerId: "5",
+    customerName: "Arabella Vu",
+    customerEmail: "arabella@email.com",
+    customerPhone: "+1-555-0127",
+    shippingAddress: {
+      street: "567 Maple Drive",
+      city: "Seattle",
+      state: "WA",
+      zipCode: "98101",
+      country: "USA",
+    },
+    items: [
+      {
+        id: "SHPITEM-007",
+        orderLineItemId: "LINE-008",
+        productId: "7",
+        sku: "JW-GLD-007",
+        name: "Phoenix Pendant",
+        quantity: 1,
+        image: "https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?w=200",
+        warehouseLocation: "D-03-5",
+        picked: false,
+        packed: false,
+      },
+    ],
+    carrier: "USPS",
+    shippingMethod: "standard",
+    packageWeight: 0.3,
+    packageDimensions: {
+      length: 20,
+      width: 15,
+      height: 5,
+    },
+    status: "pending",
+    warehouse: "US",
+    shippingCost: 7.99,
+    createdDate: "2025-11-03T08:00:00",
+    estimatedDelivery: "2025-11-09",
+    priority: "normal",
+    labelPrinted: false,
+    packingSlipPrinted: false,
+    signatureRequired: false,
+    insuranceRequired: false,
+    saleRep: "Michael Chen",
+  },
+  {
+    id: "SHP-006",
+    shipmentNumber: "SHP-2025-006",
+    orderId: "6",
+    orderNumber: "666021907",
+    orderAmount: 890,
+    customerId: "6",
+    customerName: "Xuan Xuan",
+    customerEmail: "xuanxuan@email.com",
+    customerPhone: "+1-555-0128",
+    shippingAddress: {
+      street: "890 Cedar Lane",
+      city: "Boston",
+      state: "MA",
+      zipCode: "02101",
+      country: "USA",
+    },
+    items: [
+      {
+        id: "SHPITEM-008",
+        orderLineItemId: "LINE-009",
+        productId: "1",
+        sku: "JW-GLD-001",
+        name: "Golden Lotus Bracelet",
+        quantity: 1,
+        image: "https://images.unsplash.com/photo-1611591437281-460bfbe1220a?w=200",
+        warehouseLocation: "A-12-3",
+        picked: false,
+        packed: false,
+      },
+    ],
+    carrier: "UPS",
+    shippingMethod: "express",
+    packageWeight: 0.5,
+    packageDimensions: {
+      length: 30,
+      width: 20,
+      height: 10,
+    },
+    status: "exception",
+    warehouse: "US",
+    shippingCost: 12.50,
+    createdDate: "2025-11-01T16:00:00",
+    estimatedDelivery: "2025-11-04",
+    lastScanDate: "2025-11-02T10:00:00",
+    lastScanLocation: "Boston, MA - Exception",
+    priority: "high",
+    labelPrinted: true,
+    packingSlipPrinted: true,
+    signatureRequired: true,
+    insuranceRequired: false,
+    tags: ["signature", "heavy"],
+    saleRep: "Sarah Park",
+    alerts: {
+      late: 7,
+      imageMissing: true,
+    },
+    exceptionReason: "Address incomplete - customer contacted",
+    exceptionDate: "2025-11-02T10:00:00",
+    exceptionResolved: false,
+    notes: "Customer needs to provide apartment number",
+  },
+  {
+    id: "SHP-007",
+    shipmentNumber: "SHP-2025-007",
+    orderId: "7",
+    orderNumber: "666021908",
+    orderAmount: 540,
+    batchId: "BATCH-002",
+    batchName: "US1102-01",
+    customerId: "7",
+    customerName: "Le Hoa",
+    customerEmail: "lehoa@email.com",
+    customerPhone: "+1-555-0129",
+    shippingAddress: {
+      street: "234 Birch Street",
+      city: "Denver",
+      state: "CO",
+      zipCode: "80201",
+      country: "USA",
+    },
+    items: [
+      {
+        id: "SHPITEM-009",
+        orderLineItemId: "LINE-010",
+        productId: "8",
+        sku: "JW-SLV-008",
+        name: "Infinity Love Ring",
+        quantity: 1,
+        image: "https://images.unsplash.com/photo-1605100804763-247f67b3557e?w=200",
+        warehouseLocation: "C-09-6",
+        picked: true,
+        packed: false,
+        pickedAt: "2025-11-02T11:30:00",
+        pickedBy: "Emma Davis",
+      },
+    ],
+    carrier: "FedEx",
+    shippingMethod: "standard",
+    packageWeight: 0.2,
+    packageDimensions: {
+      length: 15,
+      width: 12,
+      height: 5,
+    },
+    status: "packing",
+    warehouse: "US",
+    shippingCost: 7.99,
+    createdDate: "2025-11-02T09:00:00",
+    pickStartDate: "2025-11-02T11:00:00",
+    pickCompletedDate: "2025-11-02T11:30:00",
+    packStartDate: "2025-11-02T14:30:00",
+    estimatedDelivery: "2025-11-08",
+    priority: "normal",
+    labelPrinted: false,
+    packingSlipPrinted: false,
+    signatureRequired: false,
+    insuranceRequired: false,
+    tags: ["gift", "fragile"],
+    saleRep: "David Kim",
+  },
+  {
+    id: "SHP-008",
+    shipmentNumber: "SHP-2025-008",
+    orderId: "8",
+    orderNumber: "666021909",
+    orderAmount: 1250,
+    batchId: "BATCH-003",
+    batchName: "VN1028-01",
+    customerId: "8",
+    customerName: "Vu Long",
+    customerEmail: "vulong@email.com",
+    customerPhone: "+84-123-456-789",
+    shippingAddress: {
+      street: "123 Le Loi Street",
+      city: "Ho Chi Minh City",
+      state: "HCM",
+      zipCode: "700000",
+      country: "Vietnam",
+    },
+    items: [
+      {
+        id: "SHPITEM-010",
+        orderLineItemId: "LINE-005",
+        productId: "4",
+        sku: "JW-GLD-004",
+        name: "Dragon Jade Pendant",
+        quantity: 1,
+        image: "https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?w=200",
+        warehouseLocation: "VN-A-03-2",
+        picked: true,
+        packed: true,
+        pickedAt: "2025-10-28T11:00:00",
+        packedAt: "2025-10-28T13:00:00",
+        pickedBy: "Nguyen Thi E",
+        packedBy: "Tran Van F",
+      },
+    ],
+    carrier: "VN Post",
+    trackingNumber: "VNPOST-2025-123456",
+    trackingUrl: "https://www.vnpost.vn/track?tracknum=VNPOST-2025-123456",
+    shippingMethod: "standard",
+    packageWeight: 0.3,
+    packageDimensions: {
+      length: 20,
+      width: 15,
+      height: 8,
+    },
+    status: "delivered",
+    warehouse: "VN",
+    shippingCost: 15.00,
+    createdDate: "2025-10-28T10:00:00",
+    pickStartDate: "2025-10-28T10:30:00",
+    pickCompletedDate: "2025-10-28T11:00:00",
+    packStartDate: "2025-10-28T12:30:00",
+    packCompletedDate: "2025-10-28T13:00:00",
+    labelPrintedDate: "2025-10-28T14:00:00",
+    shipDate: "2025-10-28T15:00:00",
+    estimatedDelivery: "2025-10-30",
+    actualDelivery: "2025-10-30T11:00:00",
+    lastScanDate: "2025-10-30T11:00:00",
+    lastScanLocation: "Ho Chi Minh City - Delivered",
+    priority: "normal",
+    labelPrinted: true,
+    packingSlipPrinted: true,
+    signatureRequired: false,
+    insuranceRequired: false,
+    tags: ["international"],
+    saleRep: "Jennifer Lee",
+  },
+  // NEW PENDING SHIPMENTS
+  {
+    id: "SHP-009",
+    shipmentNumber: "SHP-2025-009",
+    orderId: "9",
+    orderNumber: "666021910",
+    orderAmount: 625,
+    batchId: "BATCH-005",
+    batchName: "US1103-01",
+    customerId: "9",
+    customerName: "Emily Chen",
+    customerEmail: "emily.chen@email.com",
+    customerPhone: "+1-555-0130",
+    shippingAddress: {
+      street: "123 Market Street",
+      city: "San Francisco",
+      state: "CA",
+      zipCode: "94102",
+      country: "USA",
+    },
+    items: [
+      {
+        id: "SHPITEM-011",
+        orderLineItemId: "LINE-011",
+        productId: "3",
+        sku: "JW-RG-003",
+        name: "Rose Quartz Ring",
+        quantity: 2,
+        image: "https://images.unsplash.com/photo-1605100804763-247f67b3557e?w=200",
+        warehouseLocation: "A-14-2",
+        picked: false,
+        packed: false,
+      },
+      {
+        id: "SHPITEM-011B",
+        orderLineItemId: "LINE-011B",
+        productId: "7",
+        sku: "JW-GLD-007",
+        name: "Phoenix Pendant",
+        quantity: 1,
+        image: "https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?w=200",
+        warehouseLocation: "D-03-5",
+        picked: false,
+        packed: false,
+      },
+      {
+        id: "SHPITEM-011C",
+        orderLineItemId: "LINE-011C",
+        productId: "2",
+        sku: "JW-SLV-002",
+        name: "Moonlight Pearl Necklace",
+        quantity: 1,
+        image: "https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?w=200",
+        warehouseLocation: "B-05-7",
+        picked: false,
+        packed: false,
+      },
+      {
+        id: "SHPITEM-011D",
+        orderLineItemId: "LINE-011D",
+        productId: "6",
+        sku: "JW-GLD-006",
+        name: "Prosperity Coin Charm",
+        quantity: 1,
+        image: "https://images.unsplash.com/photo-1611652022419-a9419f74343d?w=200",
+        warehouseLocation: "B-07-3",
+        picked: false,
+        packed: false,
+      },
+    ],
+    carrier: "UPS",
+    shippingMethod: "express",
+    packageWeight: 0.4,
+    packageDimensions: {
+      length: 25,
+      width: 18,
+      height: 8,
+    },
+    status: "pending",
+    warehouse: "US",
+    shippingCost: 12.50,
+    createdDate: "2025-11-03T09:15:00",
+    estimatedDelivery: "2025-11-05",
+    priority: "high",
+    labelPrinted: false,
+    packingSlipPrinted: false,
+    signatureRequired: true,
+    insuranceRequired: true,
+    saleRep: "Hang Tran",
+    tags: ["fragile", "gift"],
+    alerts: {
+      customerNote: true,
+    },
+    notes: "Customer requested gift wrapping",
+  },
+  {
+    id: "SHP-010",
+    shipmentNumber: "SHP-2025-010",
+    orderId: "10",
+    orderNumber: "666021911",
+    orderAmount: 420,
+    customerId: "10",
+    customerName: "James Wilson",
+    customerEmail: "james.w@email.com",
+    customerPhone: "+1-555-0131",
+    shippingAddress: {
+      street: "456 Broadway Ave",
+      city: "Portland",
+      state: "OR",
+      zipCode: "97201",
+      country: "USA",
+    },
+    items: [
+      {
+        id: "SHPITEM-012",
+        orderLineItemId: "LINE-012",
+        productId: "6",
+        sku: "JW-GLD-006",
+        name: "Prosperity Coin Charm",
+        quantity: 1,
+        image: "https://images.unsplash.com/photo-1611652022419-a9419f74343d?w=200",
+        warehouseLocation: "B-07-3",
+        picked: false,
+        packed: false,
+      },
+    ],
+    carrier: "USPS",
+    shippingMethod: "standard",
+    packageWeight: 0.25,
+    packageDimensions: {
+      length: 20,
+      width: 15,
+      height: 6,
+    },
+    status: "pending",
+    warehouse: "US",
+    shippingCost: 7.99,
+    createdDate: "2025-11-03T10:30:00",
+    estimatedDelivery: "2025-11-09",
+    priority: "normal",
+    labelPrinted: false,
+    packingSlipPrinted: false,
+    signatureRequired: false,
+    insuranceRequired: false,
+    tags: ["cold-chain"],
+    saleRep: "Ngoc Vo",
+  },
+  {
+    id: "SHP-011",
+    shipmentNumber: "SHP-2025-011",
+    orderId: "11",
+    orderNumber: "666021912",
+    orderAmount: 1850,
+    batchId: "BATCH-004",
+    batchName: "US1102-02",
+    customerId: "11",
+    customerName: "Sophia Martinez",
+    customerEmail: "sophia.m@email.com",
+    customerPhone: "+1-555-0132",
+    shippingAddress: {
+      street: "789 Sunset Blvd",
+      city: "Austin",
+      state: "TX",
+      zipCode: "73301",
+      country: "USA",
+    },
+    items: [
+      {
+        id: "SHPITEM-013",
+        orderLineItemId: "LINE-013",
+        productId: "2",
+        sku: "JW-SLV-002",
+        name: "Moonlight Pearl Necklace",
+        quantity: 2,
+        image: "https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?w=200",
+        warehouseLocation: "A-11-5",
+        picked: false,
+        packed: false,
+      },
+      {
+        id: "SHPITEM-013B",
+        orderLineItemId: "LINE-013B",
+        productId: "4",
+        sku: "JW-GLD-004",
+        name: "Dragon Jade Pendant",
+        quantity: 1,
+        image: "https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?w=200",
+        warehouseLocation: "A-09-1",
+        picked: false,
+        packed: false,
+      },
+      {
+        id: "SHPITEM-013C",
+        orderLineItemId: "LINE-013C",
+        productId: "8",
+        sku: "JW-SLV-008",
+        name: "Infinity Love Ring",
+        quantity: 1,
+        image: "https://images.unsplash.com/photo-1605100804763-247f67b3557e?w=200",
+        warehouseLocation: "C-09-6",
+        picked: false,
+        packed: false,
+      },
+    ],
+    carrier: "FedEx",
+    shippingMethod: "overnight",
+    packageWeight: 0.7,
+    packageDimensions: {
+      length: 32,
+      width: 22,
+      height: 11,
+    },
+    status: "pending",
+    warehouse: "US",
+    shippingCost: 25.00,
+    createdDate: "2025-11-03T11:00:00",
+    estimatedDelivery: "2025-11-04",
+    priority: "urgent",
+    labelPrinted: false,
+    packingSlipPrinted: false,
+    signatureRequired: true,
+    insuranceRequired: true,
+    saleRep: "Laura Sale",
+    tags: ["rush", "signature", "insurance"],
+    alerts: {
+      serviceRequest: true,
+    },
+  },
+  {
+    id: "SHP-012",
+    shipmentNumber: "SHP-2025-012",
+    orderId: "12",
+    orderNumber: "666021913",
+    orderAmount: 295,
+    batchId: "BATCH-002",
+    batchName: "US1102-01",
+    customerId: "12",
+    customerName: "Oliver Brown",
+    customerEmail: "oliver.b@email.com",
+    customerPhone: "+1-555-0133",
+    shippingAddress: {
+      street: "321 Pine Circle",
+      city: "Phoenix",
+      state: "AZ",
+      zipCode: "85001",
+      country: "USA",
+    },
+    items: [
+      {
+        id: "SHPITEM-014",
+        orderLineItemId: "LINE-014",
+        productId: "8",
+        sku: "JW-SLV-008",
+        name: "Infinity Love Ring",
+        quantity: 1,
+        image: "https://images.unsplash.com/photo-1605100804763-247f67b3557e?w=200",
+        warehouseLocation: "C-03-8",
+        picked: false,
+        packed: false,
+      },
+    ],
+    carrier: "USPS",
+    shippingMethod: "standard",
+    packageWeight: 0.15,
+    packageDimensions: {
+      length: 15,
+      width: 12,
+      height: 5,
+    },
+    status: "pending",
+    warehouse: "US",
+    shippingCost: 7.99,
+    createdDate: "2025-11-03T12:15:00",
+    estimatedDelivery: "2025-11-10",
+    priority: "normal",
+    labelPrinted: false,
+    packingSlipPrinted: false,
+    signatureRequired: false,
+    insuranceRequired: false,
+    tags: ["hazmat", "signature"],
+    saleRep: "Michael Chen",
+  },
+  {
+    id: "SHP-013",
+    shipmentNumber: "SHP-2025-013",
+    orderId: "13",
+    orderNumber: "666021914",
+    orderAmount: 3200,
+    customerId: "13",
+    customerName: "Isabella Garcia",
+    customerEmail: "isabella.g@email.com",
+    customerPhone: "+1-555-0134",
+    shippingAddress: {
+      street: "567 Ocean Drive",
+      city: "San Diego",
+      state: "CA",
+      zipCode: "92101",
+      country: "USA",
+    },
+    items: [
+      {
+        id: "SHPITEM-015",
+        orderLineItemId: "LINE-015",
+        productId: "4",
+        sku: "JW-GLD-004",
+        name: "Dragon Jade Pendant",
+        quantity: 3,
+        image: "https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?w=200",
+        warehouseLocation: "A-09-1",
+        picked: false,
+        packed: false,
+      },
+      {
+        id: "SHPITEM-015B",
+        orderLineItemId: "LINE-015B",
+        productId: "1",
+        sku: "JW-GLD-001",
+        name: "Golden Lotus Bracelet",
+        quantity: 2,
+        image: "https://images.unsplash.com/photo-1611591437281-460bfbe1220a?w=200",
+        warehouseLocation: "A-12-3",
+        picked: false,
+        packed: false,
+      },
+      {
+        id: "SHPITEM-015C",
+        orderLineItemId: "LINE-015C",
+        productId: "5",
+        sku: "JW-SLV-005",
+        name: "Celtic Knot Bracelet",
+        quantity: 1,
+        image: "https://images.unsplash.com/photo-1611591437281-460bfbe1220a?w=200",
+        warehouseLocation: "A-15-1",
+        picked: false,
+        packed: false,
+      },
+      {
+        id: "SHPITEM-015D",
+        orderLineItemId: "LINE-015D",
+        productId: "2",
+        sku: "JW-SLV-002",
+        name: "Moonlight Pearl Necklace",
+        quantity: 1,
+        image: "https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?w=200",
+        warehouseLocation: "B-05-7",
+        picked: false,
+        packed: false,
+      },
+    ],
+    carrier: "UPS",
+    shippingMethod: "express",
+    packageWeight: 0.9,
+    packageDimensions: {
+      length: 35,
+      width: 25,
+      height: 12,
+    },
+    status: "pending",
+    warehouse: "US",
+    shippingCost: 15.99,
+    createdDate: "2025-11-03T13:30:00",
+    estimatedDelivery: "2025-11-06",
+    priority: "high",
+    labelPrinted: false,
+    packingSlipPrinted: false,
+    signatureRequired: true,
+    insuranceRequired: true,
+    saleRep: "Sarah Park",
+    tags: ["oversized", "insurance"],
+    alerts: {
+      linkedOrders: true,
+    },
+  },
+  {
+    id: "SHP-014",
+    shipmentNumber: "SHP-2025-014",
+    orderId: "14",
+    orderNumber: "666021915",
+    orderAmount: 780,
+    batchId: "BATCH-004",
+    batchName: "US1102-02",
+    customerId: "14",
+    customerName: "Lucas Anderson",
+    customerEmail: "lucas.a@email.com",
+    customerPhone: "+1-555-0135",
+    shippingAddress: {
+      street: "890 Lake Shore Dr",
+      city: "Nashville",
+      state: "TN",
+      zipCode: "37201",
+      country: "USA",
+    },
+    items: [
+      {
+        id: "SHPITEM-016",
+        orderLineItemId: "LINE-016",
+        productId: "7",
+        sku: "JW-GLD-007",
+        name: "Phoenix Pendant",
+        quantity: 1,
+        image: "https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?w=200",
+        warehouseLocation: "D-02-4",
+        picked: false,
+        packed: false,
+      },
+    ],
+    carrier: "FedEx",
+    shippingMethod: "standard",
+    packageWeight: 0.35,
+    packageDimensions: {
+      length: 22,
+      width: 16,
+      height: 7,
+    },
+    status: "pending",
+    warehouse: "US",
+    shippingCost: 8.99,
+    createdDate: "2025-11-03T14:00:00",
+    estimatedDelivery: "2025-11-09",
+    priority: "normal",
+    labelPrinted: false,
+    packingSlipPrinted: false,
+    signatureRequired: false,
+    insuranceRequired: false,
+    saleRep: "David Kim",
+  },
+  {
+    id: "SHP-015",
+    shipmentNumber: "SHP-2025-015",
+    orderId: "15",
+    orderNumber: "666021916",
+    orderAmount: 1450,
+    customerId: "15",
+    customerName: "Mia Thompson",
+    customerEmail: "mia.t@email.com",
+    customerPhone: "+1-555-0136",
+    shippingAddress: {
+      street: "234 Mountain View Rd",
+      city: "Salt Lake City",
+      state: "UT",
+      zipCode: "84101",
+      country: "USA",
+    },
+    items: [
+      {
+        id: "SHPITEM-017",
+        orderLineItemId: "LINE-017",
+        productId: "1",
+        sku: "JW-GLD-001",
+        name: "Golden Lotus Bracelet",
+        quantity: 2,
+        image: "https://images.unsplash.com/photo-1611591437281-460bfbe1220a?w=200",
+        warehouseLocation: "A-12-3",
+        picked: false,
+        packed: false,
+      },
+      {
+        id: "SHPITEM-017B",
+        orderLineItemId: "LINE-017B",
+        productId: "3",
+        sku: "JW-RG-003",
+        name: "Rose Quartz Ring",
+        quantity: 1,
+        image: "https://images.unsplash.com/photo-1605100804763-247f67b3557e?w=200",
+        warehouseLocation: "C-08-2",
+        picked: false,
+        packed: false,
+      },
+      {
+        id: "SHPITEM-017C",
+        orderLineItemId: "LINE-017C",
+        productId: "7",
+        sku: "JW-GLD-007",
+        name: "Phoenix Pendant",
+        quantity: 1,
+        image: "https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?w=200",
+        warehouseLocation: "D-03-5",
+        picked: false,
+        packed: false,
+      },
+    ],
+    carrier: "UPS",
+    shippingMethod: "express",
+    packageWeight: 0.6,
+    packageDimensions: {
+      length: 30,
+      width: 20,
+      height: 10,
+    },
+    status: "pending",
+    warehouse: "US",
+    shippingCost: 12.50,
+    createdDate: "2025-11-03T15:20:00",
+    estimatedDelivery: "2025-11-06",
+    priority: "high",
+    labelPrinted: false,
+    packingSlipPrinted: false,
+    signatureRequired: true,
+    insuranceRequired: true,
+    saleRep: "Jennifer Lee",
+    tags: ["gift", "signature"],
+    deliveryInstructions: "Call before delivery",
+  },
+  // MULTIPLE SHIPMENTS FOR SAME ORDER - Order 666021905 (split shipment)
+  {
+    id: "SHP-016",
+    shipmentNumber: "SHP-2025-016",
+    orderId: "1",
+    orderNumber: "666021905", // Same as SHP-001
+    orderAmount: 200,
+    batchId: "BATCH-001",
+    batchName: "US1101-01",
+    customerId: "1",
+    customerName: "Ha Tu Tran",
+    customerEmail: "hatu@email.com",
+    customerPhone: "+1-555-0123",
+    shippingAddress: {
+      street: "123 Main Street, Apt 4B",
+      city: "New York",
+      state: "NY",
+      zipCode: "10001",
+      country: "USA",
+    },
+    items: [
+      {
+        id: "SHPITEM-016",
+        orderLineItemId: "LINE-016",
+        productId: "2",
+        sku: "JW-SLV-002",
+        name: "Moonlight Pearl Necklace",
+        quantity: 1,
+        image: "https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?w=200",
+        warehouseLocation: "B-05-7",
+        picked: true,
+        packed: true,
+        pickedAt: "2025-10-11T13:00:00",
+        packedAt: "2025-10-11T15:00:00",
+        pickedBy: "John Doe",
+        packedBy: "Jane Smith",
+      },
+    ],
+    carrier: "FedEx",
+    trackingNumber: "779912345678901",
+    trackingUrl: "https://www.fedex.com/fedextrack/?trknbr=779912345678901",
+    shippingMethod: "express",
+    packageWeight: 0.3,
+    packageDimensions: {
+      length: 25,
+      width: 18,
+      height: 8,
+    },
+    status: "delivered",
+    warehouse: "US",
+    warehouseLocation: "Dock-A",
+    shippingCost: 15.00,
+    insuranceValue: 100.00,
+    createdDate: "2025-10-11T10:30:00",
+    pickStartDate: "2025-10-11T12:30:00",
+    pickCompletedDate: "2025-10-11T13:00:00",
+    packStartDate: "2025-10-11T14:30:00",
+    packCompletedDate: "2025-10-11T15:00:00",
+    labelPrintedDate: "2025-10-11T15:15:00",
+    shipDate: "2025-10-11T16:00:00",
+    estimatedDelivery: "2025-11-03",
+    actualDelivery: "2025-11-03T10:30:00",
+    lastScanDate: "2025-11-03T10:30:00",
+    lastScanLocation: "New York, NY - Delivered",
+    priority: "high",
+    labelPrinted: true,
+    packingSlipPrinted: true,
+    signatureRequired: false,
+    insuranceRequired: true,
+    tags: ["signature"],
+    saleRep: "Hang Tran",
+    notes: "Part 2 of split shipment",
+  },
+  {
+    id: "SHP-017",
+    shipmentNumber: "SHP-2025-017",
+    orderId: "1",
+    orderNumber: "666021905", // Same as SHP-001 and SHP-016
+    orderAmount: 200,
+    customerId: "1",
+    customerName: "Ha Tu Tran",
+    customerEmail: "hatu@email.com",
+    customerPhone: "+1-555-0123",
+    shippingAddress: {
+      street: "123 Main Street, Apt 4B",
+      city: "New York",
+      state: "NY",
+      zipCode: "10001",
+      country: "USA",
+    },
+    items: [
+      {
+        id: "SHPITEM-017",
+        orderLineItemId: "LINE-017",
+        productId: "3",
+        sku: "JW-RG-003",
+        name: "Rose Quartz Ring",
+        quantity: 1,
+        image: "https://images.unsplash.com/photo-1605100804763-247f67b3557e?w=200",
+        warehouseLocation: "A-10-2",
+        picked: false,
+        packed: false,
+      },
+    ],
+    carrier: "USPS",
+    shippingMethod: "standard",
+    packageWeight: 0.2,
+    packageDimensions: {
+      length: 20,
+      width: 15,
+      height: 5,
+    },
+    status: "pending",
+    warehouse: "US",
+    shippingCost: 7.99,
+    createdDate: "2025-11-03T16:00:00",
+    estimatedDelivery: "2025-11-10",
+    priority: "normal",
+    labelPrinted: false,
+    packingSlipPrinted: false,
+    signatureRequired: false,
+    insuranceRequired: false,
+    saleRep: "Hang Tran",
+    notes: "Part 3 of split shipment - backordered item",
+  },
+];
+
+// Utility functions
+export function getShipmentsByOrder(orderId: string): ShipmentEnhanced[] {
+  return mockShipmentsEnhanced.filter(s => s.orderId === orderId);
+}
+
+export function getShipmentsByBatch(batchId: string): ShipmentEnhanced[] {
+  return mockShipmentsEnhanced.filter(s => s.batchId === batchId);
+}
+
+export function getShipmentsByStatus(status: ShipmentEnhanced["status"]): ShipmentEnhanced[] {
+  return mockShipmentsEnhanced.filter(s => s.status === status);
+}
+
+export function getShipmentsByWarehouse(warehouse: "US" | "VN"): ShipmentEnhanced[] {
+  return mockShipmentsEnhanced.filter(s => s.warehouse === warehouse);
+}
+
+export function getPendingShipments(): ShipmentEnhanced[] {
+  return mockShipmentsEnhanced.filter(s => 
+    s.status === "pending" || 
+    s.status === "picking" || 
+    s.status === "picked" || 
+    s.status === "packing" || 
+    s.status === "packed" || 
+    s.status === "ready"
+  );
+}
+
+export function getActiveShipments(): ShipmentEnhanced[] {
+  return mockShipmentsEnhanced.filter(s => 
+    s.status === "label-printed" || 
+    s.status === "shipped" || 
+    s.status === "in-transit" || 
+    s.status === "out-for-delivery"
+  );
+}

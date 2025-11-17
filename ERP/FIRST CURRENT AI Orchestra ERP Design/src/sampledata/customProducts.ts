@@ -1,0 +1,251 @@
+export interface CustomProduct {
+  id: string;
+  orderNumber: string;
+  customerName: string;
+  customizationType: "engraving" | "design" | "sizing" | "stone_selection" | "full_custom";
+  productType: "ring" | "necklace" | "bracelet" | "earring" | "pendant";
+  baseProduct?: string;
+  specifications: {
+    metal?: string;
+    stone?: string;
+    size?: string;
+    engraving?: string;
+    design?: string;
+    [key: string]: string | undefined;
+  };
+  status: "pending_approval" | "in_design" | "in_production" | "quality_check" | "completed" | "cancelled";
+  basePrice: number;
+  customizationFee: number;
+  totalPrice: number;
+  estimatedCompletion: string;
+  assignedTo: string;
+  designFile?: string;
+  notes: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const mockCustomProducts: CustomProduct[] = [
+  {
+    id: "custom-001",
+    orderNumber: "ORD-2025-1523",
+    customerName: "Sarah Johnson",
+    customizationType: "engraving",
+    productType: "ring",
+    baseProduct: "Classic Diamond Ring",
+    specifications: {
+      metal: "14K White Gold",
+      size: "7",
+      stone: "Diamond 0.5ct",
+      engraving: "Forever & Always - S+M",
+    },
+    status: "in_production",
+    basePrice: 1299.99,
+    customizationFee: 150.00,
+    totalPrice: 1449.99,
+    estimatedCompletion: "2025-11-15T00:00:00Z",
+    assignedTo: "Michael Chen",
+    designFile: "designs/ring-001.pdf",
+    notes: "Customer requested cursive font for engraving",
+    createdAt: "2025-10-28T09:00:00Z",
+    updatedAt: "2025-11-01T14:30:00Z",
+  },
+  {
+    id: "custom-002",
+    orderNumber: "ORD-2025-1547",
+    customerName: "David Martinez",
+    customizationType: "full_custom",
+    productType: "necklace",
+    specifications: {
+      metal: "18K Yellow Gold",
+      stone: "Sapphire & Diamond",
+      design: "Art Deco inspired pendant with geometric patterns",
+    },
+    status: "in_design",
+    basePrice: 0,
+    customizationFee: 2500.00,
+    totalPrice: 2500.00,
+    estimatedCompletion: "2025-11-25T00:00:00Z",
+    assignedTo: "Emma Williams",
+    designFile: "designs/necklace-002.pdf",
+    notes: "Customer provided reference images. Wants vintage-inspired design with modern twist",
+    createdAt: "2025-10-29T11:20:00Z",
+    updatedAt: "2025-11-02T10:15:00Z",
+  },
+  {
+    id: "custom-003",
+    orderNumber: "ORD-2025-1502",
+    customerName: "Lisa Anderson",
+    customizationType: "stone_selection",
+    productType: "bracelet",
+    baseProduct: "Golden Lotus Bracelet",
+    specifications: {
+      metal: "Rose Gold",
+      size: "M",
+      stone: "Mix: Rose Quartz, Moonstone, Amethyst",
+    },
+    status: "completed",
+    basePrice: 189.99,
+    customizationFee: 75.00,
+    totalPrice: 264.99,
+    estimatedCompletion: "2025-11-05T00:00:00Z",
+    assignedTo: "James Wilson",
+    notes: "Customer wanted specific stone combination for chakra healing",
+    createdAt: "2025-10-22T14:30:00Z",
+    updatedAt: "2025-11-05T16:45:00Z",
+  },
+  {
+    id: "custom-004",
+    orderNumber: "ORD-2025-1598",
+    customerName: "Robert Taylor",
+    customizationType: "sizing",
+    productType: "ring",
+    baseProduct: "Black Obsidian Protection Ring",
+    specifications: {
+      metal: "Sterling Silver 925",
+      size: "11.5",
+      stone: "Black Obsidian",
+    },
+    status: "quality_check",
+    basePrice: 149.99,
+    customizationFee: 50.00,
+    totalPrice: 199.99,
+    estimatedCompletion: "2025-11-10T00:00:00Z",
+    assignedTo: "Sophia Brown",
+    notes: "Non-standard size - requires custom mold",
+    createdAt: "2025-10-30T08:45:00Z",
+    updatedAt: "2025-11-02T13:20:00Z",
+  },
+  {
+    id: "custom-005",
+    orderNumber: "ORD-2025-1611",
+    customerName: "Jennifer White",
+    customizationType: "design",
+    productType: "earring",
+    baseProduct: "Pearl Drop Earrings",
+    specifications: {
+      metal: "14K Gold",
+      stone: "Freshwater Pearls",
+      design: "Modified drop length - 2.5 inches",
+    },
+    status: "in_production",
+    basePrice: 279.99,
+    customizationFee: 100.00,
+    totalPrice: 379.99,
+    estimatedCompletion: "2025-11-18T00:00:00Z",
+    assignedTo: "Michael Chen",
+    notes: "Customer requested longer drop for better proportions with her face shape",
+    createdAt: "2025-10-31T10:00:00Z",
+    updatedAt: "2025-11-02T09:30:00Z",
+  },
+  {
+    id: "custom-006",
+    orderNumber: "ORD-2025-1478",
+    customerName: "Maria Garcia",
+    customizationType: "full_custom",
+    productType: "pendant",
+    specifications: {
+      metal: "Platinum",
+      stone: "Custom cut Diamond 1.2ct",
+      design: "Family crest with intricate filigree work",
+    },
+    status: "pending_approval",
+    basePrice: 0,
+    customizationFee: 4500.00,
+    totalPrice: 4500.00,
+    estimatedCompletion: "2025-12-01T00:00:00Z",
+    assignedTo: "Emma Williams",
+    designFile: "designs/pendant-006.pdf",
+    notes: "Awaiting customer approval on initial design sketches. High-value custom piece",
+    createdAt: "2025-10-25T13:15:00Z",
+    updatedAt: "2025-11-01T11:00:00Z",
+  },
+  {
+    id: "custom-007",
+    orderNumber: "ORD-2025-1645",
+    customerName: "Christopher Lee",
+    customizationType: "engraving",
+    productType: "bracelet",
+    baseProduct: "Tiger's Eye Power Bracelet",
+    specifications: {
+      metal: "Stainless Steel",
+      size: "L",
+      stone: "Tiger's Eye",
+      engraving: "Coordinates: 40.7128° N, 74.0060° W",
+    },
+    status: "in_production",
+    basePrice: 129.99,
+    customizationFee: 120.00,
+    totalPrice: 249.99,
+    estimatedCompletion: "2025-11-12T00:00:00Z",
+    assignedTo: "James Wilson",
+    notes: "GPS coordinates of proposal location - special meaning",
+    createdAt: "2025-11-01T15:30:00Z",
+    updatedAt: "2025-11-02T10:45:00Z",
+  },
+  {
+    id: "custom-008",
+    orderNumber: "ORD-2025-1532",
+    customerName: "Amanda Clark",
+    customizationType: "stone_selection",
+    productType: "ring",
+    baseProduct: "Healing Crystal Ring",
+    specifications: {
+      metal: "14K Rose Gold",
+      size: "6",
+      stone: "Labradorite - AAA Grade",
+    },
+    status: "completed",
+    basePrice: 199.99,
+    customizationFee: 85.00,
+    totalPrice: 284.99,
+    estimatedCompletion: "2025-11-03T00:00:00Z",
+    assignedTo: "Sophia Brown",
+    notes: "Customer specifically requested AAA grade labradorite with strong flash",
+    createdAt: "2025-10-26T09:20:00Z",
+    updatedAt: "2025-11-03T14:00:00Z",
+  },
+  {
+    id: "custom-009",
+    orderNumber: "ORD-2025-1589",
+    customerName: "Thomas Harris",
+    customizationType: "design",
+    productType: "necklace",
+    baseProduct: "Minimalist Chain Necklace",
+    specifications: {
+      metal: "14K Gold",
+      design: "Custom length 22 inches with magnetic clasp",
+    },
+    status: "in_design",
+    basePrice: 349.99,
+    customizationFee: 75.00,
+    totalPrice: 424.99,
+    estimatedCompletion: "2025-11-20T00:00:00Z",
+    assignedTo: "Emma Williams",
+    notes: "Customer has arthritis, needs easy-to-use magnetic clasp",
+    createdAt: "2025-10-30T11:45:00Z",
+    updatedAt: "2025-11-01T16:20:00Z",
+  },
+  {
+    id: "custom-010",
+    orderNumber: "ORD-2025-1656",
+    customerName: "Patricia Robinson",
+    customizationType: "full_custom",
+    productType: "bracelet",
+    specifications: {
+      metal: "Sterling Silver 925",
+      stone: "Multiple: Turquoise, Coral, Lapis Lazuli",
+      design: "Southwest Native American inspired cuff bracelet",
+    },
+    status: "pending_approval",
+    basePrice: 0,
+    customizationFee: 1800.00,
+    totalPrice: 1800.00,
+    estimatedCompletion: "2025-11-28T00:00:00Z",
+    assignedTo: "James Wilson",
+    designFile: "designs/bracelet-010.pdf",
+    notes: "Customer provided reference photos. Cultural sensitivity important",
+    createdAt: "2025-11-01T14:00:00Z",
+    updatedAt: "2025-11-02T11:30:00Z",
+  },
+];
