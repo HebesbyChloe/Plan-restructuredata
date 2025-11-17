@@ -84,7 +84,7 @@ const ICON_OPTIONS = [
 
 export function AIAgentsPage() {
   const { currentTenantId } = useTenantContext();
-  const { agents, loading, createAgent, updateAgent, deleteAgent, refresh } = useAgents(undefined, currentTenantId);
+  const { agents, loading, error, createAgent, updateAgent, deleteAgent, refresh } = useAgents(undefined, currentTenantId);
   const [rawAgents, setRawAgents] = useState<AiAgent[]>([]);
   
   const [searchTerm, setSearchTerm] = useState("");
@@ -113,7 +113,7 @@ export function AIAgentsPage() {
     tenant_id: currentTenantId || null,
   });
 
-  const { seedData, createSeedData, deleteSeedData, loading: seedDataLoading } = useAgentSeedData(selectedAgentId || "");
+  const { seedData, createSeedData, deleteSeedData, loading: seedDataLoading } = useAgentSeedData(selectedAgentId || "dummy-id-to-prevent-empty-string");
   const [newSeedDataText, setNewSeedDataText] = useState("");
   const [newSeedDataIcon, setNewSeedDataIcon] = useState("Sparkles");
   const [newSeedDataColor, setNewSeedDataColor] = useState("#4B6BFB");
@@ -676,6 +676,14 @@ export function AIAgentsPage() {
         {loading ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+            <span className="ml-2 text-sm text-muted-foreground">Loading agents...</span>
+          </div>
+        ) : error ? (
+          <div className="flex flex-col items-center justify-center py-12">
+            <p className="text-sm text-destructive mb-2">Error loading agents: {error.message}</p>
+            <Button variant="outline" size="sm" onClick={() => refresh()}>
+              Retry
+            </Button>
           </div>
         ) : (
           <Table>

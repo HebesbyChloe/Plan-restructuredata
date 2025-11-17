@@ -81,43 +81,45 @@ export function useAgents(department?: string, tenantId?: number | null) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
 
-  useEffect(() => {
-    loadAgents()
-  }, [department, tenantId])
-
   const loadAgents = async () => {
     try {
       setLoading(true)
       setError(null)
 
+      // Build query step by step
       let query = supabase
         .from('ai_agents')
         .select('*')
         .eq('is_active', true)
 
-      // Filter by department: include agents where department array contains the department
-      // OR department array is empty (global agents)
-      if (department) {
-        // Use JSONB contains operator: department @> '["department"]'::jsonb OR department = '[]'::jsonb
-        // Supabase PostgREST syntax: cs = contains, eq = equals
-        query = query.or(`department.cs.["${department}"],department.eq.[]`)
-      } else {
-        // If no department specified, get all agents (global + all departments)
-        // No additional filter needed
-      }
-
-      if (tenantId) {
-        query = query.eq('tenant_id', tenantId)
-      } else {
-        query = query.is('tenant_id', null) // Global agents
-      }
-
+      // Filter by tenant: show tenant-specific OR global agents
+      // Note: Supabase PostgREST doesn't support .or() with multiple conditions easily
+      // So we'll fetch all active agents and filter in JavaScript
+      // This is simpler and more reliable
+      
       const { data, error: err } = await query.order('name', { ascending: true })
 
-      if (err) throw err
+      if (err) {
+        console.error('Database error:', err)
+        throw err
+      }
+      
+      // Filter by tenant in JavaScript after fetching
+      let tenantFilteredData = data || []
+      if (tenantId !== undefined && tenantId !== null) {
+        // Show agents for this tenant OR global agents (null tenant_id)
+        tenantFilteredData = tenantFilteredData.filter((agent: any) => 
+          agent.tenant_id === tenantId || agent.tenant_id === null
+        )
+      } else {
+        // Show only global agents when no tenant is selected
+        tenantFilteredData = tenantFilteredData.filter((agent: any) => 
+          agent.tenant_id === null
+        )
+      }
 
       // Transform department from JSONB to string array
-      const transformedData = (data || []).map((agent: any) => ({
+      let transformedData = tenantFilteredData.map((agent: any) => ({
         ...agent,
         department: Array.isArray(agent.department) 
           ? agent.department 
@@ -125,6 +127,16 @@ export function useAgents(department?: string, tenantId?: number | null) {
               ? JSON.parse(agent.department || '[]') 
               : [])
       }))
+
+      // Filter by department in JavaScript (after fetching)
+      // This is more reliable than complex PostgREST queries
+      if (department) {
+        transformedData = transformedData.filter((agent: any) => {
+          const deptArray = agent.department || []
+          // Include if department array contains the department OR is empty (global agent)
+          return deptArray.length === 0 || deptArray.includes(department)
+        })
+      }
 
       setAgents(transformedData.map(transformAgent))
     } catch (err) {
@@ -135,6 +147,11 @@ export function useAgents(department?: string, tenantId?: number | null) {
       setLoading(false)
     }
   }
+
+  useEffect(() => {
+    loadAgents()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [department, tenantId])
 
   const createAgent = async (agent: AiAgentInsert) => {
     // Ensure department is JSONB array
@@ -203,7 +220,14 @@ export function useAgentSeedData(agentId: string) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    // Don't load if agentId is empty or dummy
+    if (!agentId || agentId === "dummy-id-to-prevent-empty-string") {
+      setSeedData([])
+      setLoading(false)
+      return
+    }
     loadSeedData()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [agentId])
 
   const loadSeedData = async () => {
