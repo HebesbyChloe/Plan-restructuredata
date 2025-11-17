@@ -1,7 +1,7 @@
-require('dotenv').config();
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 const { Client } = require('pg');
 const fs = require('fs');
-const path = require('path');
 
 // PostgreSQL connection configuration
 const client = new Client({

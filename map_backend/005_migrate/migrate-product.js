@@ -1,8 +1,8 @@
-require('dotenv').config();
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 const mysql = require('mysql2/promise');
 const { Client } = require('pg');
 const fs = require('fs');
-const path = require('path');
 
 // MySQL connection (old database)
 const mysqlConfig = {
@@ -107,7 +107,7 @@ function cleanProduct(item, userMapping) {
 }
 
 // Migrate products
-async function migrateProducts(limit = 100, offset = 0) {
+async function migrateProducts(limit = 100, offset = 0, skuFilter = null) {
   let mysqlConnection;
   
   try {
@@ -130,21 +130,38 @@ async function migrateProducts(limit = 100, offset = 0) {
     console.log(`   Created mapping for ${userMapping.size} users\n`);
 
     // Get total count from old database
-    const [countResult] = await mysqlConnection.execute(
-      'SELECT COUNT(*) as total FROM `db_iv_product`'
-    );
+    let countQuery = 'SELECT COUNT(*) as total FROM `db_iv_product`';
+    let countParams = [];
+    
+    if (skuFilter) {
+      countQuery += ' WHERE sku = ?';
+      countParams = [skuFilter];
+    }
+    
+    const [countResult] = await mysqlConnection.execute(countQuery, countParams);
     const totalProducts = countResult[0].total;
     console.log(`📊 Total products in old database: ${totalProducts}`);
-    console.log(`📄 Fetching products: limit=${limit}, offset=${offset}\n`);
+    
+    if (skuFilter) {
+      console.log(`🔍 Filtering by SKU: ${skuFilter}\n`);
+    } else {
+      console.log(`📄 Fetching products: limit=${limit}, offset=${offset}\n`);
+    }
 
     // Fetch products from old database
     console.log('📂 Fetching products from old database...');
-    const [products] = await mysqlConnection.execute(
-      `SELECT * FROM \`db_iv_product\` 
-       ORDER BY id 
-       LIMIT ? OFFSET ?`,
-      [limit, offset]
-    );
+    let query = 'SELECT * FROM `db_iv_product`';
+    let queryParams = [];
+    
+    if (skuFilter) {
+      query += ' WHERE sku = ? ORDER BY id';
+      queryParams = [skuFilter];
+    } else {
+      query += ' ORDER BY id LIMIT ? OFFSET ?';
+      queryParams = [limit, offset];
+    }
+    
+    const [products] = await mysqlConnection.execute(query, queryParams);
     console.log(`   Fetched ${products.length} products\n`);
 
     // Clean and transform data
@@ -357,12 +374,48 @@ async function migrateProducts(limit = 100, offset = 0) {
 
 // Parse command line arguments
 const args = process.argv.slice(2);
-const limit = args[0] ? parseInt(args[0]) : 100;
-const offset = args[1] ? parseInt(args[1]) : 0;
+let limit = 100;
+let offset = 0;
+let skuFilter = null;
+
+// Parse arguments - support --sku or -s flag for SKU filtering
+for (let i = 0; i < args.length; i++) {
+  const arg = args[i];
+  
+  if (arg === '--sku' || arg === '-s') {
+    // Next argument is the SKU
+    if (i + 1 < args.length) {
+      skuFilter = args[i + 1];
+      i++; // Skip next argument as we've consumed it
+    } else {
+      console.error('❌ Error: --sku flag requires a value');
+      process.exit(1);
+    }
+  } else if (!skuFilter) {
+    // If no SKU filter is set, treat as limit/offset
+    if (i === 0) {
+      limit = parseInt(arg);
+      if (isNaN(limit)) {
+        console.error(`❌ Error: Invalid limit value: ${arg}`);
+        process.exit(1);
+      }
+    } else if (i === 1) {
+      offset = parseInt(arg);
+      if (isNaN(offset)) {
+        console.error(`❌ Error: Invalid offset value: ${arg}`);
+        process.exit(1);
+      }
+    }
+  }
+}
 
 console.log('🚀 Starting product migration...\n');
-console.log(`📋 Parameters: limit=${limit}, offset=${offset}\n`);
+if (skuFilter) {
+  console.log(`📋 Parameters: SKU=${skuFilter}\n`);
+} else {
+  console.log(`📋 Parameters: limit=${limit}, offset=${offset}\n`);
+}
 
 // Run migration
-migrateProducts(limit, offset);
+migrateProducts(limit, offset, skuFilter);
 

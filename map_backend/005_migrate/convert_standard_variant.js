@@ -173,7 +173,7 @@ async function convertStandardToVariant(limit = 100, offset = 0) {
         }
         
         console.log(`     - Size Values: [${productData.size_values.join(', ')}]`);
-        console.log(`     - Number of variants to create: ${productData.size_values.length}`);
+        console.log(`     - Number of variant records to create: ${productData.size_values.length}`);
       }
       console.log('');
     }
@@ -240,9 +240,9 @@ async function convertStandardToVariant(limit = 100, offset = 0) {
             variantSku = `${productData.sku}-${sizeValue}`.substring(0, 100);
           }
 
-          // Check if variant SKU already exists
+          // Check if variant SKU already exists in product_variant
           const existingCheck = await pgClient.query(
-            'SELECT id FROM product WHERE sku = $1',
+            'SELECT id FROM product_variant WHERE variant_sku = $1',
             [variantSku]
           );
 
@@ -251,43 +251,32 @@ async function convertStandardToVariant(limit = 100, offset = 0) {
             continue;
           }
 
-          // Insert variant product (copy toàn bộ data từ product gốc)
-          // Variant products có product_type = 'variant'
-          const variantResult = await pgClient.query(
-            `INSERT INTO product (
-              sku, name, product_type, retail_price, sale_price, description,
-              is_pre_order, promotion_id, created_at, updated_at,
-              created_by_id, updated_by_id, status, published_at
-            ) VALUES (
-              $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14
-            ) RETURNING id`,
-            [
-              variantSku,
-              productData.name,
-              'variant', // Variant products (sản phẩm con) có product_type = 'variant'
-              productData.retail_price,
-              productData.sale_price,
-              productData.description,
-              productData.is_pre_order,
-              productData.promotion_id,
-              productData.created_at,
-              productData.updated_at,
-              productData.created_by_id,
-              productData.updated_by_id,
-              productData.status,
-              productData.published_at
-            ]
-          );
-
-          const variantProductId = variantResult.rows[0].id;
-
-          // Insert vào product_variant với sort_order
+          // Insert vào product_variant với variant_sku và metadata
+          // Không tạo product riêng nữa - chỉ lưu metadata trong product_variant
           await pgClient.query(
             `INSERT INTO product_variant (
-              parent_product_id, variant_product_id, variant_attribute, variant_value, sort_order, created_at
-            ) VALUES ($1, $2, $3, $4, $5, now())
+              parent_product_id, 
+              variant_attribute, 
+              variant_value, 
+              variant_sku,
+              retail_price_override,
+              sale_price_override,
+              status,
+              sort_order, 
+              created_at,
+              updated_at
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, now(), now())
             ON CONFLICT (parent_product_id, variant_attribute, variant_value) DO NOTHING`,
-            [productId, variantProductId, 'size', sizeValue, sortOrder]
+            [
+              productId, 
+              'size', 
+              sizeValue, 
+              variantSku,
+              null, // retail_price_override: NULL = inherit from parent
+              null, // sale_price_override: NULL = inherit from parent
+              null, // status: NULL = inherit from parent
+              sortOrder
+            ]
           );
 
           variantCount++;
@@ -317,7 +306,7 @@ async function convertStandardToVariant(limit = 100, offset = 0) {
     }
 
     console.log(`\n\n✅ Processed ${successCount} products`);
-    console.log(`📦 Created ${variantCount} variant products`);
+    console.log(`📦 Created ${variantCount} variant records (no separate products created)`);
     if (errorCount > 0) {
       console.log(`❌ Failed ${errorCount} products`);
       console.log('\nFirst 10 errors:');
@@ -333,8 +322,9 @@ async function convertStandardToVariant(limit = 100, offset = 0) {
     // Summary
     console.log('📊 Migration Summary:');
     console.log(`   • Products processed: ${successCount}`);
-    console.log(`   • Variant products created: ${variantCount}`);
+    console.log(`   • Variant records created: ${variantCount} (stored in product_variant table)`);
     console.log(`   • Failed: ${errorCount}`);
+    console.log(`   • Note: Variants are stored as metadata in product_variant, not as separate products`);
 
     await pgClient.end();
     console.log('\n✅ Migration completed!');
