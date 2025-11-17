@@ -9,6 +9,9 @@ const connectionConfig = {
   user: process.env.MYSQL_DB_USER,
   password: process.env.MYSQL_DB_PASSWORD,
   database: process.env.MYSQL_DB_NAME,
+  connectTimeout: 60000,        // 60 seconds timeout for connection
+  acquireTimeout: 60000,        // 60 seconds timeout for acquiring connection
+  timeout: 60000,               // 60 seconds timeout for queries
 };
 
 // Fetch all material data from old database

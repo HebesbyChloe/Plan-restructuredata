@@ -33,6 +33,12 @@ CREATE TABLE IF NOT EXISTS material (
     element_attribute_id BIGINT NULL,
     thumbnail VARCHAR(500) DEFAULT '',
     description TEXT DEFAULT '',
+    unit VARCHAR(100) DEFAULT '' NOT NULL,
+    dimension VARCHAR(100) NULL,
+    price NUMERIC(12,2) DEFAULT 0 NOT NULL,
+    cost NUMERIC(12,2) DEFAULT 0 NOT NULL,
+    weight NUMERIC(10,3) NULL,
+    conversion_factor NUMERIC(10,3) NULL,
     is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -41,7 +47,21 @@ CREATE TABLE IF NOT EXISTS material (
 );
 
 -- Step 2: CHECK constraints
--- (none)
+ALTER TABLE material 
+    ADD CONSTRAINT chk_material_price 
+    CHECK (price >= 0);
+
+ALTER TABLE material 
+    ADD CONSTRAINT chk_material_cost 
+    CHECK (cost >= 0);
+
+ALTER TABLE material 
+    ADD CONSTRAINT chk_material_weight 
+    CHECK (weight IS NULL OR weight > 0);
+
+ALTER TABLE material 
+    ADD CONSTRAINT chk_material_conversion_factor 
+    CHECK (conversion_factor IS NULL OR conversion_factor >= 0);
 
 -- Step 3: UNIQUE constraints
 ALTER TABLE material 
@@ -95,6 +115,8 @@ CREATE INDEX IF NOT EXISTS idx_material_color ON material(color_attribute_id);
 CREATE INDEX IF NOT EXISTS idx_material_intention ON material(intention_attribute_id);
 CREATE INDEX IF NOT EXISTS idx_material_element ON material(element_attribute_id);
 CREATE INDEX IF NOT EXISTS idx_material_is_active ON material(is_active);
+CREATE INDEX IF NOT EXISTS idx_material_unit ON material(unit);
+CREATE INDEX IF NOT EXISTS idx_material_price ON material(price);
 
 -- Step 7: Triggers
 -- (see Triggers section at end of file)
@@ -116,6 +138,7 @@ CREATE TABLE IF NOT EXISTS material_variant (
     price NUMERIC(12,2) NOT NULL DEFAULT 0,
     cost NUMERIC(12,2) NOT NULL DEFAULT 0,
     weight NUMERIC(10,3) NULL,
+    conversion_factor NUMERIC(10,3) NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     created_by_id BIGINT NULL,
@@ -464,4 +487,77 @@ CREATE TRIGGER trg_material_product_updated_at
 --    - unit and conversion_factor are stored in material_variant (not in material_stock) to avoid data duplication
 --    - Stock manages quantities (quantity, inbound, outbound) and total_converted_quantity
 --    - total_converted_quantity: Calculate in application/query as quantity * material_variant.conversion_factor
+
+-- ============================================================================
+-- Migration: Add unit, price, cost, weight to material table (if table already exists)
+-- ============================================================================
+-- Run these ALTER TABLE statements if material table was created before these fields were added
+
+-- Add unit column
+ALTER TABLE material 
+    ADD COLUMN IF NOT EXISTS unit VARCHAR(100) DEFAULT '' NOT NULL;
+
+-- Add price column
+ALTER TABLE material 
+    ADD COLUMN IF NOT EXISTS price NUMERIC(12,2) DEFAULT 0 NOT NULL;
+
+-- Add cost column
+ALTER TABLE material 
+    ADD COLUMN IF NOT EXISTS cost NUMERIC(12,2) DEFAULT 0 NOT NULL;
+
+-- Add dimension column
+ALTER TABLE material 
+    ADD COLUMN IF NOT EXISTS dimension VARCHAR(100) NULL;
+
+-- Add weight column
+ALTER TABLE material 
+    ADD COLUMN IF NOT EXISTS weight NUMERIC(10,3) NULL;
+
+-- Add conversion_factor column
+ALTER TABLE material 
+    ADD COLUMN IF NOT EXISTS conversion_factor NUMERIC(10,3) NULL;
+
+-- Add CHECK constraints (if not exists)
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint 
+        WHERE conname = 'chk_material_price'
+    ) THEN
+        ALTER TABLE material 
+            ADD CONSTRAINT chk_material_price 
+            CHECK (price >= 0);
+    END IF;
+    
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint 
+        WHERE conname = 'chk_material_cost'
+    ) THEN
+        ALTER TABLE material 
+            ADD CONSTRAINT chk_material_cost 
+            CHECK (cost >= 0);
+    END IF;
+    
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint 
+        WHERE conname = 'chk_material_weight'
+    ) THEN
+        ALTER TABLE material 
+            ADD CONSTRAINT chk_material_weight 
+            CHECK (weight IS NULL OR weight > 0);
+    END IF;
+    
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint 
+        WHERE conname = 'chk_material_conversion_factor'
+    ) THEN
+        ALTER TABLE material 
+            ADD CONSTRAINT chk_material_conversion_factor 
+            CHECK (conversion_factor IS NULL OR conversion_factor >= 0);
+    END IF;
+END $$;
+
+-- Add indexes (if not exists)
+CREATE INDEX IF NOT EXISTS idx_material_unit ON material(unit);
+CREATE INDEX IF NOT EXISTS idx_material_price ON material(price);
 
