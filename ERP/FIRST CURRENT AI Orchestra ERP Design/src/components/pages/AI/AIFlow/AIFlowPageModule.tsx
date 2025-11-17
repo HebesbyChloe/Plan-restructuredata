@@ -37,6 +37,8 @@ import { Progress } from "../../../ui/progress";
 import { TabBar } from "../../../layout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../../ui/tabs";
 import { toast } from "sonner";
+import { useTenantContext } from "../../../../contexts/TenantContext";
+import { createAIFlowRequest } from "../../../../lib/supabase/ai-flows";
 import {
   Table,
   TableBody,
@@ -69,6 +71,17 @@ export function AIFlowPage({ department = "Marketing" }: AIFlowPageProps) {
   const [sheetMode, setSheetMode] = useState<SheetMode>("view");
   const [selectedFlow, setSelectedFlow] = useState<AIFlow | null>(null);
 
+  // Form state for new flow request
+  const [flowName, setFlowName] = useState("");
+  const [flowDescription, setFlowDescription] = useState("");
+  const [flowLayer, setFlowLayer] = useState<string>("");
+  const [flowCategory, setFlowCategory] = useState("");
+  const [flowPurpose, setFlowPurpose] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Get tenant from context
+  const { currentTenantId } = useTenantContext();
+
   const config = departmentConfig[department] || departmentConfig.Marketing;
 
   const activeFlows = aiFlows.filter((f) => f.status === "active").length;
@@ -93,6 +106,12 @@ export function AIFlowPage({ department = "Marketing" }: AIFlowPageProps) {
     setSelectedFlow(null);
     setSheetMode("request");
     setIsSheetOpen(true);
+    // Reset form fields
+    setFlowName("");
+    setFlowDescription("");
+    setFlowLayer("");
+    setFlowCategory("");
+    setFlowPurpose("");
   };
 
   const handleStatusToggle = (flow: AIFlow) => {
@@ -343,7 +362,15 @@ export function AIFlowPage({ department = "Marketing" }: AIFlowPageProps) {
       <Sheet open={isSheetOpen} onOpenChange={(open) => {
         setIsSheetOpen(open);
         if (!open) {
-          setTimeout(() => setSheetMode("view"), 300);
+          setTimeout(() => {
+            setSheetMode("view");
+            // Reset form fields when sheet closes
+            setFlowName("");
+            setFlowDescription("");
+            setFlowLayer("");
+            setFlowCategory("");
+            setFlowPurpose("");
+          }, 300);
         }
       }}>
         <SheetContent className="w-full sm:max-w-2xl overflow-y-auto p-0 [&>button]:z-[60]">
@@ -381,8 +408,14 @@ export function AIFlowPage({ department = "Marketing" }: AIFlowPageProps) {
 
                 <div className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="flow-name">Flow Name</Label>
-                    <Input id="flow-name" placeholder="e.g., Product Launch Coordinator" />
+                    <Label htmlFor="flow-name">Flow Name *</Label>
+                    <Input 
+                      id="flow-name" 
+                      placeholder="e.g., Product Launch Coordinator"
+                      value={flowName}
+                      onChange={(e) => setFlowName(e.target.value)}
+                      disabled={isSubmitting}
+                    />
                   </div>
 
                   <div className="space-y-2">
@@ -391,12 +424,15 @@ export function AIFlowPage({ department = "Marketing" }: AIFlowPageProps) {
                       id="flow-description"
                       placeholder="Describe what this AI flow should do..."
                       rows={4}
+                      value={flowDescription}
+                      onChange={(e) => setFlowDescription(e.target.value)}
+                      disabled={isSubmitting}
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="flow-layer">Layer Type</Label>
-                    <Select>
+                    <Label htmlFor="flow-layer">Layer Type *</Label>
+                    <Select value={flowLayer} onValueChange={setFlowLayer} disabled={isSubmitting}>
                       <SelectTrigger id="flow-layer">
                         <SelectValue placeholder="Select layer type" />
                       </SelectTrigger>
@@ -412,7 +448,13 @@ export function AIFlowPage({ department = "Marketing" }: AIFlowPageProps) {
 
                   <div className="space-y-2">
                     <Label htmlFor="flow-category">Category</Label>
-                    <Input id="flow-category" placeholder="e.g., Content Creation" />
+                    <Input 
+                      id="flow-category" 
+                      placeholder="e.g., Content Creation"
+                      value={flowCategory}
+                      onChange={(e) => setFlowCategory(e.target.value)}
+                      disabled={isSubmitting}
+                    />
                   </div>
 
                   <div className="space-y-2">
@@ -421,20 +463,72 @@ export function AIFlowPage({ department = "Marketing" }: AIFlowPageProps) {
                       id="flow-purpose"
                       placeholder="Explain why you need this flow and how it will help..."
                       rows={3}
+                      value={flowPurpose}
+                      onChange={(e) => setFlowPurpose(e.target.value)}
+                      disabled={isSubmitting}
                     />
                   </div>
 
                   <div className="flex gap-3 pt-4">
                     <Button
                       className="flex-1"
-                      onClick={() => {
-                        toast.success("Request submitted to admin for review");
-                        setIsSheetOpen(false);
+                      onClick={async () => {
+                        if (!currentTenantId) {
+                          toast.error("No tenant selected. Please select a tenant first.");
+                          return;
+                        }
+
+                        if (!flowName.trim()) {
+                          toast.error("Flow name is required");
+                          return;
+                        }
+
+                        if (!flowLayer) {
+                          toast.error("Layer type is required");
+                          return;
+                        }
+
+                        setIsSubmitting(true);
+                        try {
+                          const { data, error } = await createAIFlowRequest(
+                            {
+                              name: flowName.trim(),
+                              description: flowDescription.trim() || undefined,
+                              layer: parseInt(flowLayer) as 1 | 2 | 3,
+                              category: flowCategory.trim() || undefined,
+                              businessPurpose: flowPurpose.trim() || undefined,
+                            },
+                            currentTenantId
+                          );
+
+                          if (error) {
+                            toast.error(`Failed to submit request: ${error.message}`);
+                          } else {
+                            toast.success("Request submitted to admin for review");
+                            // Reset form
+                            setFlowName("");
+                            setFlowDescription("");
+                            setFlowLayer("");
+                            setFlowCategory("");
+                            setFlowPurpose("");
+                            setIsSheetOpen(false);
+                            // Optionally refresh the flows list here
+                          }
+                        } catch (err) {
+                          toast.error(`Unexpected error: ${err instanceof Error ? err.message : 'Unknown error'}`);
+                        } finally {
+                          setIsSubmitting(false);
+                        }
                       }}
+                      disabled={isSubmitting}
                     >
-                      Submit Request
+                      {isSubmitting ? "Submitting..." : "Submit Request"}
                     </Button>
-                    <Button variant="outline" onClick={() => setIsSheetOpen(false)}>
+                    <Button 
+                      variant="outline" 
+                      onClick={() => setIsSheetOpen(false)}
+                      disabled={isSubmitting}
+                    >
                       Cancel
                     </Button>
                   </div>
