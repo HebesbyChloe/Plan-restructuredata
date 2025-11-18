@@ -32,13 +32,14 @@ import {
   Users,
   ShoppingCart,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Progress } from "../../../ui/progress";
 import { TabBar } from "../../../layout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../../ui/tabs";
 import { toast } from "sonner";
 import { useTenantContext } from "../../../../contexts/TenantContext";
-import { createAIFlowRequest } from "../../../../lib/supabase/ai-flows";
+import { createAIFlowRequest, getAIFlows, updateAIFlowStatus, updateAIFlow, deleteAIFlow, getExternalTools, type AIFlowRow } from "../../../../lib/supabase/ai-flows";
+import { format } from "date-fns";
 import {
   Table,
   TableBody,
@@ -60,10 +61,52 @@ import {
 } from "../../../ui/select";
 import { Switch } from "../../../ui/switch";
 
-import type { AIFlow, AIFlowPageProps, SheetMode, ExternalTool } from "./types";
-import { aiFlows, externalTools } from "./utils/aiFlowData";
+import type { AIFlow, AIFlowPageProps, SheetMode } from "./types";
 import { statusConfig, departmentConfig } from "./utils/constants";
 import { FlowTable, LayerExplainer } from "./components";
+
+// Map database row to frontend AIFlow type
+const mapAIFlowFromDB = (row: AIFlowRow): AIFlow => {
+  // Use layer column directly (supports layers 1, 2, 3, 4)
+  const layer: 1 | 2 | 3 | 4 = row.layer || 1;
+
+  // Map status: 'draft' in DB = 'requested' in frontend
+  const status: "active" | "paused" | "requested" = 
+    row.status === 'draft' ? 'requested' : row.status;
+
+  // Extract category from metadata (preferred) or trigger_config (backward compatibility)
+  const category = row.metadata?.category || row.trigger_config?.category || 'General';
+
+  // Format dates
+  const createdDate = row.created_at 
+    ? format(new Date(row.created_at), "MMM d, yyyy")
+    : "Unknown";
+  
+  const lastRun = row.last_run_at
+    ? format(new Date(row.last_run_at), "MMM d, yyyy 'at' h:mm a")
+    : "Never";
+
+  // Calculate avg time (placeholder - could be enhanced)
+  const avgTime = row.runs_count > 0 ? "~2 min" : "N/A";
+
+  return {
+    id: row.id.toString(),
+    name: row.name,
+    description: row.description || "No description provided",
+    status,
+    layer,
+    category,
+    metrics: {
+      tasksProcessed: row.runs_count || 0,
+      successRate: Math.round(row.success_rate || 0),
+      avgTime,
+      quality: Math.round(row.success_rate || 0), // Use success_rate as quality proxy
+      efficiency: Math.round((row.success_rate || 0) * 0.9), // Estimate efficiency
+    },
+    lastRun: row.last_run_at ? lastRun : undefined,
+    createdDate,
+  };
+};
 
 export function AIFlowPage({ department = "Marketing" }: AIFlowPageProps) {
   const [activeTab, setActiveTab] = useState<string>("layer1");
@@ -79,27 +122,126 @@ export function AIFlowPage({ department = "Marketing" }: AIFlowPageProps) {
   const [flowPurpose, setFlowPurpose] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Data state
+  const [aiFlows, setAIFlows] = useState<AIFlow[]>([]);
+  const [externalTools, setExternalTools] = useState<AIFlow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+  
+  // Edit state
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedName, setEditedName] = useState("");
+  const [editedDescription, setEditedDescription] = useState("");
+  const [editedCategory, setEditedCategory] = useState("");
+  const [editedStatus, setEditedStatus] = useState<"active" | "paused" | "draft">("draft");
+  const [editedLayer, setEditedLayer] = useState<1 | 2 | 3 | 4>(1);
+  const [editedSource, setEditedSource] = useState<'internal' | 'external' | 'n8n' | 'gpts' | 'zapier' | 'make'>('internal');
+  const [editedUrl, setEditedUrl] = useState("");
+  const [editedIcon, setEditedIcon] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+
   // Get tenant from context
   const { currentTenantId } = useTenantContext();
 
   const config = departmentConfig[department] || departmentConfig.Marketing;
 
+  // Fetch AI flows from database
+  useEffect(() => {
+    if (!currentTenantId) {
+      setLoading(false);
+      return;
+    }
+
+    const loadFlows = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        // Load internal flows (layers 1, 2, 3)
+        const { data, error: fetchError } = await getAIFlows(currentTenantId, {
+          source: 'internal'
+        });
+        if (fetchError) {
+          setError(fetchError);
+          toast.error(`Failed to load AI flows: ${fetchError.message}`);
+        } else {
+          const mappedFlows = (data || []).map(mapAIFlowFromDB);
+          setAIFlows(mappedFlows);
+        }
+
+        // Load external tools (layer 4, source = 'external')
+        const { data: externalData, error: externalError } = await getExternalTools(currentTenantId);
+        if (externalError) {
+          console.error('Failed to load external tools:', externalError);
+        } else {
+          const mappedExternal = (externalData || []).map(mapAIFlowFromDB);
+          setExternalTools(mappedExternal);
+        }
+      } catch (err) {
+        const error = err instanceof Error ? err : new Error('Unknown error');
+        setError(error);
+        toast.error(`Failed to load AI flows: ${error.message}`);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadFlows();
+  }, [currentTenantId]);
+
   const activeFlows = aiFlows.filter((f) => f.status === "active").length;
   const totalTasks = aiFlows.reduce((sum, f) => sum + f.metrics.tasksProcessed, 0);
   const avgSuccessRate =
-    aiFlows
-      .filter((f) => f.status === "active")
-      .reduce((sum, f) => sum + f.metrics.successRate, 0) /
-    aiFlows.filter((f) => f.status === "active").length;
+    activeFlows > 0
+      ? aiFlows
+          .filter((f) => f.status === "active")
+          .reduce((sum, f) => sum + f.metrics.successRate, 0) / activeFlows
+      : 0;
 
-  const getFlowsByLayer = (layer: 1 | 2 | 3) => {
+  const getFlowsByLayer = (layer: 1 | 2 | 3 | 4) => {
     return aiFlows.filter((flow) => flow.layer === layer);
   };
 
-  const handleFlowClick = (flow: AIFlow) => {
+  const handleFlowClick = async (flow: AIFlow) => {
     setSelectedFlow(flow);
     setSheetMode("view");
     setIsSheetOpen(true);
+    setIsEditing(false);
+    // Initialize edit fields
+    setEditedName(flow.name);
+    setEditedDescription(flow.description);
+    setEditedCategory(flow.category);
+    setEditedStatus(flow.status === "requested" ? "draft" : flow.status);
+    setEditedLayer(flow.layer);
+    
+    // Fetch the full row data to get source and metadata
+    if (currentTenantId) {
+      const { data: allFlows } = await getAIFlows(currentTenantId);
+      const flowRow = allFlows?.find(f => f.id === parseInt(flow.id));
+      if (flowRow) {
+        setEditedSource(flowRow.source);
+        // For external tools, extract url and icon from metadata
+        if (flow.layer === 4) {
+          setEditedUrl(flowRow.metadata?.url || "");
+          setEditedIcon(flowRow.metadata?.icon || "");
+        } else {
+          setEditedUrl("");
+          setEditedIcon("");
+        }
+      } else {
+        // Try external tools
+        const { data: externalData } = await getExternalTools(currentTenantId);
+        const externalRow = externalData?.find(f => f.id === parseInt(flow.id));
+        if (externalRow) {
+          setEditedSource(externalRow.source);
+          setEditedUrl(externalRow.metadata?.url || "");
+          setEditedIcon(externalRow.metadata?.icon || "");
+        } else {
+          setEditedSource('internal');
+          setEditedUrl("");
+          setEditedIcon("");
+        }
+      }
+    }
   };
 
   const handleRequestNew = () => {
@@ -114,25 +256,159 @@ export function AIFlowPage({ department = "Marketing" }: AIFlowPageProps) {
     setFlowPurpose("");
   };
 
-  const handleStatusToggle = (flow: AIFlow) => {
-    if (flow.status === "active") {
-      toast.success(`${flow.name} paused`);
-    } else if (flow.status === "paused") {
-      toast.success(`${flow.name} activated`);
+  const handleStatusToggle = async (flow: AIFlow) => {
+    if (!currentTenantId) {
+      toast.error("No tenant selected");
+      return;
+    }
+
+    const newStatus = flow.status === "active" ? "paused" : "active";
+    
+    try {
+      const { data, error: updateError } = await updateAIFlowStatus(
+        parseInt(flow.id),
+        newStatus,
+        currentTenantId
+      );
+
+      if (updateError) {
+        toast.error(`Failed to update flow status: ${updateError.message}`);
+      } else {
+        // Update local state
+        setAIFlows(prevFlows =>
+          prevFlows.map(f =>
+            f.id === flow.id
+              ? { ...f, status: newStatus }
+              : f
+          )
+        );
+
+        // Update selected flow if it's the one being toggled
+        if (selectedFlow?.id === flow.id) {
+          setSelectedFlow({ ...selectedFlow, status: newStatus });
+        }
+
+        toast.success(`${flow.name} ${newStatus === "active" ? "activated" : "paused"}`);
+      }
+    } catch (err) {
+      toast.error(`Failed to update flow status: ${err instanceof Error ? err.message : 'Unknown error'}`);
     }
   };
 
-  const handleDelete = (flow: AIFlow) => {
-    toast.success(`Request to delete "${flow.name}" sent to admin`);
-    setIsSheetOpen(false);
+  const handleDelete = async (flow: AIFlow) => {
+    if (!currentTenantId) {
+      toast.error("No tenant selected");
+      return;
+    }
+
+    if (!confirm(`Are you sure you want to delete "${flow.name}"? This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      const { error: deleteError } = await deleteAIFlow(
+        parseInt(flow.id),
+        currentTenantId
+      );
+
+      if (deleteError) {
+        toast.error(`Failed to delete flow: ${deleteError.message}`);
+      } else {
+        toast.success(`"${flow.name}" deleted successfully`);
+        setIsSheetOpen(false);
+        // Refresh flows list
+        const { data: refreshedData } = await getAIFlows(currentTenantId, { source: 'internal' });
+        if (refreshedData) {
+          const mappedFlows = refreshedData.map(mapAIFlowFromDB);
+          setAIFlows(mappedFlows);
+        }
+        const { data: externalData } = await getExternalTools(currentTenantId);
+        if (externalData) {
+          const mappedExternal = externalData.map(mapAIFlowFromDB);
+          setExternalTools(mappedExternal);
+        }
+      }
+    } catch (err) {
+      toast.error(`Failed to delete flow: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    }
   };
 
-  const handleExternalToolClick = (tool: ExternalTool) => {
-    if (tool.url && tool.url !== "#") {
-      window.open(tool.url, "_blank");
-      toast.success(`Opening ${tool.name}...`);
-    } else {
-      toast.info(`${tool.name} coming soon`);
+  const handleSaveEdit = async () => {
+    if (!selectedFlow || !currentTenantId) {
+      return;
+    }
+
+    if (!editedName.trim()) {
+      toast.error("Flow name is required");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const metadata: any = {
+        category: editedCategory,
+      };
+
+      // Add URL and icon for external tools (layer 4)
+      if (editedLayer === 4) {
+        if (editedUrl) metadata.url = editedUrl;
+        if (editedIcon) metadata.icon = editedIcon;
+      }
+
+      const updateData: any = {
+        name: editedName.trim(),
+        description: editedDescription.trim() || null,
+        status: editedStatus,
+        layer: editedLayer,
+        source: editedSource,
+        metadata: metadata,
+      };
+
+      const { error: updateError } = await updateAIFlow(
+        parseInt(selectedFlow.id),
+        updateData,
+        currentTenantId
+      );
+
+      if (updateError) {
+        toast.error(`Failed to update flow: ${updateError.message}`);
+      } else {
+        toast.success("Flow updated successfully");
+        setIsEditing(false);
+        // Refresh all flows
+        const { data: refreshedData } = await getAIFlows(currentTenantId, { source: 'internal' });
+        if (refreshedData) {
+          const mappedFlows = refreshedData.map(mapAIFlowFromDB);
+          setAIFlows(mappedFlows);
+        }
+        const { data: externalData } = await getExternalTools(currentTenantId);
+        if (externalData) {
+          const mappedExternal = externalData.map(mapAIFlowFromDB);
+          setExternalTools(mappedExternal);
+        }
+        // Reload the selected flow to get updated data
+        const { data: allFlows } = await getAIFlows(currentTenantId);
+        const updatedRow = allFlows?.find(f => f.id === parseInt(selectedFlow.id));
+        if (updatedRow) {
+          const updatedFlow = mapAIFlowFromDB(updatedRow);
+          setSelectedFlow(updatedFlow);
+          // Re-initialize edit fields with updated data
+          setEditedName(updatedFlow.name);
+          setEditedDescription(updatedFlow.description);
+          setEditedCategory(updatedFlow.category);
+          setEditedStatus(updatedFlow.status === "requested" ? "draft" : updatedFlow.status);
+          setEditedLayer(updatedFlow.layer);
+          setEditedSource(updatedRow.source);
+          if (updatedFlow.layer === 4) {
+            setEditedUrl(updatedRow.metadata?.url || "");
+            setEditedIcon(updatedRow.metadata?.icon || "");
+          }
+        }
+      }
+    } catch (err) {
+      toast.error(`Failed to update flow: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -236,8 +512,8 @@ export function AIFlowPage({ department = "Marketing" }: AIFlowPageProps) {
               count: getFlowsByLayer(3).length,
             },
             {
-              value: "external",
-              label: "External Tools",
+              value: "layer4",
+              label: "Layer 4: External Tools",
               icon: ExternalLink,
               count: externalTools.length,
             },
@@ -246,114 +522,65 @@ export function AIFlowPage({ department = "Marketing" }: AIFlowPageProps) {
           {/* Layer 1: Automated */}
           <TabsContent value="layer1" className="space-y-4">
             <LayerExplainer layer={1} />
-            <FlowTable flows={getFlowsByLayer(1)} onFlowClick={handleFlowClick} />
+            {loading ? (
+              <Card className="p-8 text-center">
+                <p className="opacity-60">Loading AI flows...</p>
+              </Card>
+            ) : error ? (
+              <Card className="p-8 text-center border-red-200 dark:border-red-800">
+                <p className="text-red-600 dark:text-red-400">Error loading flows: {error.message}</p>
+              </Card>
+            ) : (
+              <FlowTable flows={getFlowsByLayer(1)} onFlowClick={handleFlowClick} />
+            )}
           </TabsContent>
 
           {/* Layer 2: On-Demand */}
           <TabsContent value="layer2" className="space-y-4">
             <LayerExplainer layer={2} />
-            <FlowTable flows={getFlowsByLayer(2)} onFlowClick={handleFlowClick} />
+            {loading ? (
+              <Card className="p-8 text-center">
+                <p className="opacity-60">Loading AI flows...</p>
+              </Card>
+            ) : error ? (
+              <Card className="p-8 text-center border-red-200 dark:border-red-800">
+                <p className="text-red-600 dark:text-red-400">Error loading flows: {error.message}</p>
+              </Card>
+            ) : (
+              <FlowTable flows={getFlowsByLayer(2)} onFlowClick={handleFlowClick} />
+            )}
           </TabsContent>
 
           {/* Layer 3: Interactive */}
           <TabsContent value="layer3" className="space-y-4">
             <LayerExplainer layer={3} />
-            <FlowTable flows={getFlowsByLayer(3)} onFlowClick={handleFlowClick} />
+            {loading ? (
+              <Card className="p-8 text-center">
+                <p className="opacity-60">Loading AI flows...</p>
+              </Card>
+            ) : error ? (
+              <Card className="p-8 text-center border-red-200 dark:border-red-800">
+                <p className="text-red-600 dark:text-red-400">Error loading flows: {error.message}</p>
+              </Card>
+            ) : (
+              <FlowTable flows={getFlowsByLayer(3)} onFlowClick={handleFlowClick} />
+            )}
           </TabsContent>
 
-          {/* External Tools */}
-          <TabsContent value="external" className="space-y-4">
-            {/* External Tools Explainer */}
-            <Card className="p-6 border-glass-border bg-gradient-to-r from-orange-500/10 to-orange-500/5 backdrop-blur-sm mb-4">
-              <div className="flex items-start gap-4">
-                <div className="p-3 rounded-xl bg-orange-500/20">
-                  <ExternalLink className="w-6 h-6 text-orange-600 dark:text-orange-400" />
-                </div>
-                <div className="flex-1">
-                  <div className="mb-3">
-                    <h3 className="mb-1">External Tools</h3>
-                    <p className="text-sm opacity-60 mb-0">Third-party integrations</p>
-                  </div>
-                  <p className="opacity-80 mb-3">
-                    Connect popular external AI and creative tools to enhance your marketing workflows.
-                  </p>
-                  <div className="grid grid-cols-3 gap-4">
-                    <div className="flex gap-2 items-start">
-                      <CheckCircle2 className="w-4 h-4 text-orange-600 dark:text-orange-400 flex-shrink-0 mt-0.5" />
-                      <p className="text-sm opacity-70 mb-0">Quick access to external platforms</p>
-                    </div>
-                    <div className="flex gap-2 items-start">
-                      <CheckCircle2 className="w-4 h-4 text-orange-600 dark:text-orange-400 flex-shrink-0 mt-0.5" />
-                      <p className="text-sm opacity-70 mb-0">Integrated with your workflows</p>
-                    </div>
-                    <div className="flex gap-2 items-start">
-                      <CheckCircle2 className="w-4 h-4 text-orange-600 dark:text-orange-400 flex-shrink-0 mt-0.5" />
-                      <p className="text-sm opacity-70 mb-0">Expand your AI capabilities</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </Card>
-
-            <Card className="border-glass-border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-[300px]">Tool Name</TableHead>
-                    <TableHead>Category</TableHead>
-                    <TableHead className="text-center">Status</TableHead>
-                    <TableHead className="text-right">Action</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {externalTools.map((tool) => (
-                    <TableRow
-                      key={tool.id}
-                      className="cursor-pointer hover:bg-muted/50"
-                      onClick={() => handleExternalToolClick(tool)}
-                    >
-                      <TableCell>
-                        <div className="flex items-center gap-3">
-                          <div className="text-2xl">{tool.icon}</div>
-                          <div>
-                            <p className="mb-0">{tool.name}</p>
-                            <p className="text-xs opacity-60 mb-0">{tool.description}</p>
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{tool.category}</Badge>
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <Badge
-                          className={
-                            tool.status === "connected"
-                              ? "bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300"
-                              : "bg-gray-100 dark:bg-gray-900/30 text-gray-800 dark:text-gray-300"
-                          }
-                        >
-                          {tool.status === "connected" ? "Connected" : "Available"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="gap-2"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleExternalToolClick(tool);
-                          }}
-                        >
-                          <ExternalLink className="w-3.5 h-3.5" />
-                          Open
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </Card>
+          {/* Layer 4: External Tools */}
+          <TabsContent value="layer4" className="space-y-4">
+            <LayerExplainer layer={4} />
+            {loading ? (
+              <Card className="p-8 text-center">
+                <p className="opacity-60">Loading external tools...</p>
+              </Card>
+            ) : error ? (
+              <Card className="p-8 text-center border-red-200 dark:border-red-800">
+                <p className="text-red-600 dark:text-red-400">Error loading external tools: {error.message}</p>
+              </Card>
+            ) : (
+              <FlowTable flows={externalTools} onFlowClick={handleFlowClick} />
+            )}
           </TabsContent>
         </TabBar>
       </div>
@@ -439,9 +666,8 @@ export function AIFlowPage({ department = "Marketing" }: AIFlowPageProps) {
                       <SelectContent>
                         <SelectItem value="1">Layer 1: Automated (Background)</SelectItem>
                         <SelectItem value="2">Layer 2: On-Demand (Click to Run)</SelectItem>
-                        <SelectItem value="3">
-                          Layer 3: Interactive (Conversational)
-                        </SelectItem>
+                        <SelectItem value="3">Layer 3: Interactive (Conversational)</SelectItem>
+                        <SelectItem value="4">Layer 4: External Tools</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -512,7 +738,14 @@ export function AIFlowPage({ department = "Marketing" }: AIFlowPageProps) {
                             setFlowCategory("");
                             setFlowPurpose("");
                             setIsSheetOpen(false);
-                            // Optionally refresh the flows list here
+                            // Refresh the flows list
+                            if (currentTenantId) {
+                              const { data: refreshedData } = await getAIFlows(currentTenantId);
+                              if (refreshedData) {
+                                const mappedFlows = refreshedData.map(mapAIFlowFromDB);
+                                setAIFlows(mappedFlows);
+                              }
+                            }
                           }
                         } catch (err) {
                           toast.error(`Unexpected error: ${err instanceof Error ? err.message : 'Unknown error'}`);
@@ -540,26 +773,206 @@ export function AIFlowPage({ department = "Marketing" }: AIFlowPageProps) {
                 <>
                   {/* Header */}
                   <SheetHeader>
-                    <div className="flex items-start gap-3">
-                      <div className="w-12 h-12 rounded-xl bg-[#4B6BFB]/10 flex items-center justify-center flex-shrink-0">
-                        <Brain className="w-6 h-6 text-[#4B6BFB]" />
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <SheetTitle className="text-3xl">{selectedFlow.name}</SheetTitle>
-                          <Badge
-                            className={`${statusConfig[selectedFlow.status].bgColor} ${
-                              statusConfig[selectedFlow.status].textColor
-                            }`}
-                          >
-                            {selectedFlow.status.charAt(0).toUpperCase() +
-                              selectedFlow.status.slice(1)}
-                          </Badge>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-start gap-3 flex-1">
+                        <div className="w-12 h-12 rounded-xl bg-[#4B6BFB]/10 flex items-center justify-center flex-shrink-0">
+                          <Brain className="w-6 h-6 text-[#4B6BFB]" />
                         </div>
-                        <SheetDescription className="mb-0">
-                          {selectedFlow.description}
-                        </SheetDescription>
+                        <div className="flex-1">
+                          {isEditing ? (
+                            <div className="space-y-3">
+                              <div>
+                                <Label className="text-xs opacity-60 mb-1">Flow Name *</Label>
+                                <Input
+                                  value={editedName}
+                                  onChange={(e) => setEditedName(e.target.value)}
+                                  className="text-xl font-semibold"
+                                  placeholder="Flow name"
+                                />
+                              </div>
+                              <div>
+                                <Label className="text-xs opacity-60 mb-1">Description</Label>
+                                <Textarea
+                                  value={editedDescription}
+                                  onChange={(e) => setEditedDescription(e.target.value)}
+                                  placeholder="Flow description"
+                                  rows={3}
+                                />
+                              </div>
+                              <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                  <Label className="text-xs opacity-60 mb-1">Category</Label>
+                                  <Input
+                                    value={editedCategory}
+                                    onChange={(e) => setEditedCategory(e.target.value)}
+                                    placeholder="Category"
+                                  />
+                                </div>
+                                <div>
+                                  <Label className="text-xs opacity-60 mb-1">Status</Label>
+                                  <Select value={editedStatus} onValueChange={(value) => setEditedStatus(value as "active" | "paused" | "draft")}>
+                                    <SelectTrigger>
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="active">Active</SelectItem>
+                                      <SelectItem value="paused">Paused</SelectItem>
+                                      <SelectItem value="draft">Draft</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                              </div>
+                              <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                  <Label className="text-xs opacity-60 mb-1">Layer</Label>
+                                  <Select value={editedLayer.toString()} onValueChange={(value) => setEditedLayer(parseInt(value) as 1 | 2 | 3 | 4)}>
+                                    <SelectTrigger>
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="1">Layer 1: Automated</SelectItem>
+                                      <SelectItem value="2">Layer 2: On-Demand</SelectItem>
+                                      <SelectItem value="3">Layer 3: Interactive</SelectItem>
+                                      <SelectItem value="4">Layer 4: External Tools</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                                <div>
+                                  <Label className="text-xs opacity-60 mb-1">Source</Label>
+                                  <Select value={editedSource} onValueChange={(value) => setEditedSource(value as typeof editedSource)}>
+                                    <SelectTrigger>
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="internal">Internal</SelectItem>
+                                      <SelectItem value="external">External</SelectItem>
+                                      <SelectItem value="n8n">n8n</SelectItem>
+                                      <SelectItem value="gpts">GPTs</SelectItem>
+                                      <SelectItem value="zapier">Zapier</SelectItem>
+                                      <SelectItem value="make">Make</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                              </div>
+                              {editedLayer === 4 && (
+                                <>
+                                  <div>
+                                    <Label className="text-xs opacity-60 mb-1">Tool URL</Label>
+                                    <Input
+                                      value={editedUrl}
+                                      onChange={(e) => setEditedUrl(e.target.value)}
+                                      placeholder="https://example.com"
+                                      type="url"
+                                    />
+                                  </div>
+                                  <div>
+                                    <Label className="text-xs opacity-60 mb-1">Icon</Label>
+                                    <Input
+                                      value={editedIcon}
+                                      onChange={(e) => setEditedIcon(e.target.value)}
+                                      placeholder="🎨 (emoji or text)"
+                                    />
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                          ) : (
+                            <>
+                              <div className="flex items-center gap-2 mb-1">
+                                <SheetTitle className="text-3xl">{selectedFlow.name}</SheetTitle>
+                                <Badge
+                                  className={`${statusConfig[selectedFlow.status].bgColor} ${
+                                    statusConfig[selectedFlow.status].textColor
+                                  }`}
+                                >
+                                  {selectedFlow.status.charAt(0).toUpperCase() +
+                                    selectedFlow.status.slice(1)}
+                                </Badge>
+                              </div>
+                              <SheetDescription className="mb-0">
+                                {selectedFlow.description}
+                              </SheetDescription>
+                            </>
+                          )}
+                        </div>
                       </div>
+                      {!isEditing && (
+                        <div className="flex gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setIsEditing(true)}
+                            className="gap-2"
+                          >
+                            <Edit3 className="w-4 h-4" />
+                            Edit
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDelete(selectedFlow)}
+                            className="gap-2 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                            Delete
+                          </Button>
+                        </div>
+                      )}
+                      {isEditing && (
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={async () => {
+                              setIsEditing(false);
+                              // Reset to original values from selectedFlow
+                              setEditedName(selectedFlow.name);
+                              setEditedDescription(selectedFlow.description);
+                              setEditedCategory(selectedFlow.category);
+                              setEditedStatus(selectedFlow.status === "requested" ? "draft" : selectedFlow.status);
+                              setEditedLayer(selectedFlow.layer);
+                              // Reload source and metadata from database
+                              if (currentTenantId) {
+                                const { data: allFlows } = await getAIFlows(currentTenantId);
+                                const flowRow = allFlows?.find(f => f.id === parseInt(selectedFlow.id));
+                                if (flowRow) {
+                                  setEditedSource(flowRow.source);
+                                  if (selectedFlow.layer === 4) {
+                                    setEditedUrl(flowRow.metadata?.url || "");
+                                    setEditedIcon(flowRow.metadata?.icon || "");
+                                  } else {
+                                    setEditedUrl("");
+                                    setEditedIcon("");
+                                  }
+                                } else {
+                                  const { data: externalData } = await getExternalTools(currentTenantId);
+                                  const externalRow = externalData?.find(f => f.id === parseInt(selectedFlow.id));
+                                  if (externalRow) {
+                                    setEditedSource(externalRow.source);
+                                    setEditedUrl(externalRow.metadata?.url || "");
+                                    setEditedIcon(externalRow.metadata?.icon || "");
+                                  } else {
+                                    setEditedSource('internal');
+                                    setEditedUrl("");
+                                    setEditedIcon("");
+                                  }
+                                }
+                              }
+                            }}
+                            disabled={isSaving}
+                          >
+                            Cancel
+                          </Button>
+                          <Button
+                            size="sm"
+                            onClick={handleSaveEdit}
+                            disabled={isSaving}
+                            className="gap-2 bg-[#4B6BFB] hover:bg-[#3A5BEB]"
+                          >
+                            {isSaving ? "Saving..." : "Save"}
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   </SheetHeader>
 
@@ -574,7 +987,7 @@ export function AIFlowPage({ department = "Marketing" }: AIFlowPageProps) {
                           <div className="flex items-center gap-2 mb-2">
                             <h4 className="mb-0 text-[#4B6BFB]">AI Performance Insights</h4>
                             <Badge variant="outline" className="bg-[#4B6BFB]/10 text-[#4B6BFB] border-[#4B6BFB]/20">
-                              {selectedFlow.layer === 1 ? "Automated" : selectedFlow.layer === 2 ? "On-Demand" : "Interactive"}
+                              {selectedFlow.layer === 1 ? "Automated" : selectedFlow.layer === 2 ? "On-Demand" : selectedFlow.layer === 3 ? "Interactive" : "External Tools"}
                             </Badge>
                           </div>
                           <div className="space-y-2 text-sm">
@@ -689,11 +1102,11 @@ export function AIFlowPage({ department = "Marketing" }: AIFlowPageProps) {
                         <div>
                           <Label className="text-xs opacity-60">Layer Type</Label>
                           <p className="mt-1 mb-0">
-                            Layer {selectedFlow.layer}: {selectedFlow.layer === 1 ? "Automated (Background)" : selectedFlow.layer === 2 ? "On-Demand" : "Interactive (Conversational)"}
+                            Layer {selectedFlow.layer}: {selectedFlow.layer === 1 ? "Automated (Background)" : selectedFlow.layer === 2 ? "On-Demand" : selectedFlow.layer === 3 ? "Interactive (Conversational)" : "External Tools"}
                           </p>
                         </div>
                         <Badge variant="outline" className="bg-[#4B6BFB]/10 text-[#4B6BFB] border-[#4B6BFB]/20">
-                          {selectedFlow.layer === 1 ? "Automated" : selectedFlow.layer === 2 ? "On-Demand" : "Interactive"}
+                          {selectedFlow.layer === 1 ? "Automated" : selectedFlow.layer === 2 ? "On-Demand" : selectedFlow.layer === 3 ? "Interactive" : "External Tools"}
                         </Badge>
                       </div>
 

@@ -207,23 +207,28 @@ export async function updateBrand(
 // ============================================
 // BRAND SETTINGS (mkt_brand_settings)
 // ============================================
+// Table structure:
+// - id (INTEGER, PRIMARY KEY, DEFAULT 1) - Problem: causes duplicate key errors
+// - tenant_id (BIGINT, NOT NULL, UNIQUE) - Only one row per tenant
+// - brand_id (BIGINT, NULLABLE, FK to sys_brands.id)
+// - story (TEXT, NULLABLE)
+// - slogan (VARCHAR(500), NULLABLE)
+// - tagline (VARCHAR(500), NULLABLE)
+// - vision (TEXT, NULLABLE)
+// - mission (TEXT, NULLABLE)
+// - updated_at (TIMESTAMPTZ, NOT NULL, DEFAULT CURRENT_TIMESTAMP)
 
 export async function getBrandSettings(
   tenantId: number,
   brandId?: number | null
 ): Promise<{ data: BrandSettings | null; error: Error | null }> {
   try {
-    let query = supabase
+    // Query by tenant_id (UNIQUE constraint ensures only one row per tenant)
+    const { data, error } = await supabase
       .from('mkt_brand_settings')
       .select('*')
       .eq('tenant_id', tenantId)
-      .limit(1);
-
-    if (brandId !== undefined && brandId !== null) {
-      query = query.eq('brand_id', brandId);
-    }
-
-    const { data, error } = await query.single();
+      .maybeSingle();
 
     if (error) {
       // If no settings exist, return empty object
@@ -232,6 +237,10 @@ export async function getBrandSettings(
       }
       console.error('Error fetching brand settings:', error);
       return { data: null, error: new Error(error.message) };
+    }
+
+    if (!data) {
+      return { data: {}, error: null };
     }
 
     return {
@@ -257,36 +266,83 @@ export async function upsertBrandSettings(
   settings: BrandSettings
 ): Promise<{ data: BrandSettings | null; error: Error | null }> {
   try {
-    const { data, error } = await supabase
+    // First, check if a record exists for this tenant_id
+    // (UNIQUE constraint ensures only one row per tenant)
+    const { data: existing, error: checkError } = await supabase
       .from('mkt_brand_settings')
-      .upsert({
-        tenant_id: tenantId,
-        brand_id: settings.brandId || null,
-        story: settings.story || null,
-        slogan: settings.slogan || null,
-        tagline: settings.tagline || null,
-        vision: settings.vision || null,
-        mission: settings.mission || null,
-      }, {
-        onConflict: 'tenant_id',
-      })
-      .select()
-      .single();
+      .select('id')
+      .eq('tenant_id', tenantId)
+      .maybeSingle();
 
-    if (error) {
-      console.error('Error upserting brand settings:', error);
-      return { data: null, error: new Error(error.message) };
+    if (checkError && checkError.code !== 'PGRST116') {
+      console.error('Error checking existing brand settings:', checkError);
+      return { data: null, error: new Error(checkError.message) };
+    }
+
+    const updateData: any = {
+      tenant_id: tenantId,
+      brand_id: settings.brandId || null,
+      story: settings.story || null,
+      slogan: settings.slogan || null,
+      tagline: settings.tagline || null,
+      vision: settings.vision || null,
+      mission: settings.mission || null,
+      updated_at: new Date().toISOString(),
+    };
+
+    let result;
+
+    if (existing) {
+      // Update existing record
+      const { data, error } = await supabase
+        .from('mkt_brand_settings')
+        .update(updateData)
+        .eq('id', existing.id)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error updating brand settings:', error);
+        return { data: null, error: new Error(error.message) };
+      }
+      result = data;
+    } else {
+      // Insert new record
+      // Get the next available ID to avoid conflict with DEFAULT 1
+      const { data: maxIdData } = await supabase
+        .from('mkt_brand_settings')
+        .select('id')
+        .order('id', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      const nextId = maxIdData ? maxIdData.id + 1 : 1;
+
+      const { data, error } = await supabase
+        .from('mkt_brand_settings')
+        .insert({
+          id: nextId,
+          ...updateData,
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error inserting brand settings:', error);
+        return { data: null, error: new Error(error.message) };
+      }
+      result = data;
     }
 
     return {
       data: {
-        id: data.id,
-        brandId: data.brand_id || null,
-        story: data.story || null,
-        slogan: data.slogan || null,
-        tagline: data.tagline || null,
-        vision: data.vision || null,
-        mission: data.mission || null,
+        id: result.id,
+        brandId: result.brand_id || null,
+        story: result.story || null,
+        slogan: result.slogan || null,
+        tagline: result.tagline || null,
+        vision: result.vision || null,
+        mission: result.mission || null,
       },
       error: null,
     };
@@ -314,6 +370,8 @@ export async function getBrandColors(
 
     if (brandId !== undefined && brandId !== null) {
       query = query.eq('brand_id', brandId);
+    } else {
+      query = query.is('brand_id', null);
     }
 
     const { data, error } = await query;
@@ -418,6 +476,8 @@ export async function getBrandTypography(
 
     if (brandId !== undefined && brandId !== null) {
       query = query.eq('brand_id', brandId);
+    } else {
+      query = query.is('brand_id', null);
     }
 
     const { data, error } = await query;
@@ -527,6 +587,8 @@ export async function getBrandLogos(
 
     if (brandId !== undefined && brandId !== null) {
       query = query.eq('brand_id', brandId);
+    } else {
+      query = query.is('brand_id', null);
     }
 
     const { data, error } = await query;
@@ -559,6 +621,69 @@ export async function getBrandLogos(
   }
 }
 
+export async function upsertBrandLogos(
+  tenantId: number,
+  logos: Omit<BrandLogo, 'id'>[],
+  brandId?: number | null
+): Promise<{ data: BrandLogo[] | null; error: Error | null }> {
+  try {
+    // Delete existing logos for this tenant/brand
+    let deleteQuery = supabase
+      .from('mkt_brand_logos')
+      .delete()
+      .eq('tenant_id', tenantId);
+    
+    if (brandId !== undefined && brandId !== null) {
+      deleteQuery = deleteQuery.eq('brand_id', brandId);
+    } else {
+      deleteQuery = deleteQuery.is('brand_id', null);
+    }
+
+    await deleteQuery;
+
+    // Insert new logos
+    const insertData = logos.map((logo, index) => ({
+      tenant_id: tenantId,
+      brand_id: brandId || null,
+      name: logo.name,
+      variation_type: logo.variationType,
+      logo_url: logo.logoUrl,
+      thumbnail_url: logo.thumbnailUrl || null,
+      background_color: logo.backgroundColor || null,
+      is_dark: logo.isDark || false,
+      description: logo.description || null,
+      sort_order: logo.sortOrder || index,
+    }));
+
+    const { data, error } = await supabase
+      .from('mkt_brand_logos')
+      .insert(insertData)
+      .select();
+
+    if (error) {
+      console.error('Error upserting brand logos:', error);
+      return { data: null, error: new Error(error.message) };
+    }
+
+    const result: BrandLogo[] = (data || []).map((row: any) => ({
+      id: row.id,
+      name: row.name,
+      variationType: row.variation_type as "primary" | "dark" | "icon_only" | "monochrome",
+      logoUrl: row.logo_url,
+      thumbnailUrl: row.thumbnail_url || null,
+      backgroundColor: row.background_color || null,
+      isDark: row.is_dark || false,
+      description: row.description || null,
+      sortOrder: row.sort_order || 0,
+    }));
+
+    return { data: result, error: null };
+  } catch (err) {
+    console.error('Unexpected error upserting brand logos:', err);
+    return { data: null, error: err instanceof Error ? err : new Error('Unknown error') };
+  }
+}
+
 // ============================================
 // BRAND GUIDELINES (mkt_brand_guidelines)
 // ============================================
@@ -577,6 +702,8 @@ export async function getBrandGuidelines(
 
     if (brandId !== undefined && brandId !== null) {
       query = query.eq('brand_id', brandId);
+    } else {
+      query = query.is('brand_id', null);
     }
 
     const { data, error } = await query;
@@ -631,7 +758,7 @@ export async function upsertBrandGuidelines(
       brand_id: brandId || null,
       title: item.title,
       category: item.category,
-      items: item.items,
+      items: item.items, // JSONB field
       sort_order: item.sortOrder || index,
     }));
 
@@ -659,4 +786,3 @@ export async function upsertBrandGuidelines(
     return { data: null, error: err instanceof Error ? err : new Error('Unknown error') };
   }
 }
-

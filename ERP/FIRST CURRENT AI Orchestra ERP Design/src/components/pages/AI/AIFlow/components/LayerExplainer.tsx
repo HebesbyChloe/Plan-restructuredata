@@ -1,5 +1,5 @@
 import { Card } from "../../../../ui/card";
-import { Cpu, MousePointer, MessageSquare, CheckCircle2 } from "lucide-react";
+import { Cpu, MousePointer, MessageSquare, ExternalLink, CheckCircle2 } from "lucide-react";
 import type { FlowLayer } from "../types";
 
 interface LayerExplainerProps {
@@ -41,6 +41,18 @@ const explainers = {
       "Back-and-forth conversation",
       "Edit and adjust collaboratively",
       "Best for strategy and planning",
+    ],
+  },
+  4: {
+    title: "Layer 4: External Tools",
+    subtitle: "Third-party integrations",
+    icon: ExternalLink,
+    color: "#F59E0B",
+    description: "Connect popular external AI and creative tools to enhance your marketing workflows.",
+    features: [
+      "Quick access to external platforms",
+      "Integrated with your workflows",
+      "Expand your AI capabilities",
     ],
   },
 };

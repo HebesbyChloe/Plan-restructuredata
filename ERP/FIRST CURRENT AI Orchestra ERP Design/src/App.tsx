@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter, usePathname } from "next/navigation";
+import { parseRoutePath, getRoutePath } from "./utils/routing";
 import { TopNavBar, ContextualSidebar, Footer, CategoryContent } from "./components/layout";
 import { AIAssistant } from "./components/AI";
 import { HomePage } from "./components/HomePage";
@@ -60,6 +62,9 @@ import {
 import IntroPage from "./components/IntroPage";
 
 export default function App() {
+  const router = useRouter();
+  const pathname = usePathname();
+  
   // Initialize all state first
   // Read default category and team from environment variables (for parallel development)
   // Each worktree can have its own .env.local to set different defaults
@@ -86,6 +91,28 @@ export default function App() {
       setShowIntro(!hasSeenIntro);
     }
   }, []);
+
+  // Sync state with URL on mount and when URL changes
+  // Only sync if we're on the root route (not a specific route file)
+  useEffect(() => {
+    if (!mounted || !pathname) return;
+    
+    // If pathname is not "/", it means we're on a specific route
+    // The route file will handle rendering, but we still want to sync state for sidebar
+    const { category, page } = parseRoutePath(pathname);
+    
+    if (category && category !== currentCategory) {
+      setCurrentCategory(category);
+    }
+    
+    if (page && page !== selectedSidebarItem) {
+      setSelectedSidebarItem(page);
+    } else if (category && !page && selectedSidebarItem !== undefined) {
+      // If category exists but no page, set to undefined (shows overview)
+      setSelectedSidebarItem(undefined);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname, mounted]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -129,17 +156,21 @@ export default function App() {
   const handleCategoryChange = (category: string) => {
     setCurrentCategory(category);
     // Auto-select sidebar items for certain categories
+    let defaultItem: string | undefined = undefined;
     if (category === "Orders") {
-      setSelectedSidebarItem("Overview");
+      defaultItem = "Overview";
     } else if (category === "Fulfilment") {
-      setSelectedSidebarItem("Overview");
+      defaultItem = "Overview";
     } else if (category === "Logistics") {
-      setSelectedSidebarItem("Overview");
+      defaultItem = "Overview";
     } else if (category === "Workspace") {
-      setSelectedSidebarItem("My Work Space");
-    } else {
-      setSelectedSidebarItem(undefined);
+      defaultItem = "My Work Space";
     }
+    setSelectedSidebarItem(defaultItem);
+    
+    // Update URL
+    const path = getRoutePath(category, defaultItem);
+    router.push(path);
   };
 
   const handleSidebarItemClick = (item: string) => {
@@ -151,6 +182,10 @@ export default function App() {
       // Auto-expand sidebar when navigating to other pages (unless AI collapsed it)
       setIsSidebarCollapsed(false);
     }
+    
+    // Update URL
+    const path = getRoutePath(currentCategory, item);
+    router.push(path);
   };
 
   const renderMainContent = () => {

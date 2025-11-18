@@ -24,6 +24,7 @@ import {
   getBrandTypography,
   upsertBrandTypography,
   getBrandLogos,
+  upsertBrandLogos,
   getBrandGuidelines,
   upsertBrandGuidelines,
   type Brand,
@@ -45,6 +46,10 @@ import { useTenantContext } from "../../../contexts/TenantContext";
 export default function BrandHubPage() {
   const [copiedColor, setCopiedColor] = useState<string | null>(null);
   const [isEditingIdentity, setIsEditingIdentity] = useState(false);
+  const [isEditingColors, setIsEditingColors] = useState(false);
+  const [isEditingTypography, setIsEditingTypography] = useState(false);
+  const [isEditingLogos, setIsEditingLogos] = useState(false);
+  const [isEditingGuidelines, setIsEditingGuidelines] = useState(false);
   
   // Brand selection
   const [brands, setBrands] = useState<Brand[]>([]);
@@ -71,8 +76,15 @@ export default function BrandHubPage() {
     headings: [],
     body: [],
   });
-  const [logoVariations, setLogoVariations] = useState<Array<{ name: string; bg: string; description: string; isDark?: boolean }>>([]);
+  const [logoVariations, setLogoVariations] = useState<Array<{ name: string; bg: string; description: string; isDark?: boolean; logoUrl?: string; thumbnailUrl?: string | null }>>([]);
+  const [brandLogos, setBrandLogos] = useState<BrandLogo[]>([]);
   const [brandGuidelines, setBrandGuidelines] = useState<BrandGuideline[]>([]);
+  const [fontStack, setFontStack] = useState<string>("-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif");
+  const [logoSpecs, setLogoSpecs] = useState<{ clearSpace: string; minimumSize: string; fileFormats: string }>({
+    clearSpace: "Maintain minimum clear space of 0.5x the logo height on all sides",
+    minimumSize: "Digital: 24px height | Print: 0.5 inches height",
+    fileFormats: "SVG for web, PNG for raster, PDF for print",
+  });
   
   // Mock data for assets (not in database yet)
   const brandAssets = [
@@ -147,11 +159,14 @@ export default function BrandHubPage() {
           setTypography(grouped);
         }
         if (logosResult.data) {
+          setBrandLogos(logosResult.data);
           setLogoVariations(logosResult.data.map(logo => ({
             name: logo.name,
             bg: logo.backgroundColor || "#FFFFFF",
             description: logo.description || "",
             isDark: logo.isDark,
+            logoUrl: logo.logoUrl,
+            thumbnailUrl: logo.thumbnailUrl,
           })));
         }
         if (guidelinesResult.data) {
@@ -225,6 +240,136 @@ export default function BrandHubPage() {
 
   const handleCancelEdit = () => {
     setIsEditingIdentity(false);
+  };
+
+  // Save handlers for each section
+  const handleSaveColors = async () => {
+    if (!currentTenantId) {
+      toast.error("Please select a tenant");
+      return;
+    }
+    
+    try {
+      // Flatten colors array
+      const allColors: Omit<BrandColor, 'id'>[] = [
+        ...brandColors.primary.map(c => ({ ...c, category: 'primary' as const })),
+        ...brandColors.secondary.map(c => ({ ...c, category: 'secondary' as const })),
+        ...brandColors.neutral.map(c => ({ ...c, category: 'neutral' as const })),
+      ];
+      
+      const { error } = await upsertBrandColors(currentTenantId, allColors, selectedBrandId);
+      if (error) {
+        toast.error(`Failed to save: ${error.message}`);
+        return;
+      }
+      setIsEditingColors(false);
+      toast.success("Brand colors updated successfully");
+    } catch (err) {
+      toast.error("Failed to save brand colors");
+    }
+  };
+
+  const handleSaveTypography = async () => {
+    if (!currentTenantId) {
+      toast.error("Please select a tenant");
+      return;
+    }
+    
+    try {
+      // Flatten typography array
+      const allTypography: Omit<BrandTypography, 'id'>[] = [
+        ...typography.headings.map(t => ({ ...t, category: 'headings' as const })),
+        ...typography.body.map(t => ({ ...t, category: 'body' as const })),
+      ];
+      
+      const { error } = await upsertBrandTypography(currentTenantId, allTypography, selectedBrandId);
+      if (error) {
+        toast.error(`Failed to save: ${error.message}`);
+        return;
+      }
+      setIsEditingTypography(false);
+      toast.success("Brand typography updated successfully");
+    } catch (err) {
+      toast.error("Failed to save brand typography");
+    }
+  };
+
+  const handleSaveLogos = async () => {
+    if (!currentTenantId) {
+      toast.error("Please select a tenant");
+      return;
+    }
+    
+    try {
+      // Convert logoVariations back to BrandLogo format
+      // Match existing logos by name to preserve logoUrl if available
+      const logos: Omit<BrandLogo, 'id'>[] = logoVariations.map((logo, index) => {
+        const existingLogo = brandLogos.find(l => l.name === logo.name);
+        return {
+          name: logo.name,
+          variationType: logo.name.includes("Dark") ? "dark" as const : 
+                        logo.name.includes("Icon") ? "icon_only" as const :
+                        logo.name.includes("Mono") ? "monochrome" as const : "primary" as const,
+          logoUrl: logo.logoUrl || existingLogo?.logoUrl || "https://via.placeholder.com/400x200?text=Logo+Placeholder", // Use logoUrl from form, existing, or placeholder
+          thumbnailUrl: logo.thumbnailUrl || existingLogo?.thumbnailUrl || null,
+          backgroundColor: logo.bg,
+          isDark: logo.isDark || false,
+          description: logo.description || null,
+          sortOrder: index,
+        };
+      });
+      
+      const { error } = await upsertBrandLogos(currentTenantId, logos, selectedBrandId);
+      if (error) {
+        toast.error(`Failed to save: ${error.message}`);
+        return;
+      }
+      setIsEditingLogos(false);
+      toast.success("Brand logos updated successfully");
+      // Reload logos to get updated data
+      if (selectedBrandId !== null) {
+        const { data } = await getBrandLogos(currentTenantId, selectedBrandId);
+        if (data) {
+          setBrandLogos(data);
+          setLogoVariations(data.map(logo => ({
+            name: logo.name,
+            bg: logo.backgroundColor || "#FFFFFF",
+            description: logo.description || "",
+            isDark: logo.isDark,
+            logoUrl: logo.logoUrl,
+            thumbnailUrl: logo.thumbnailUrl,
+          })));
+        }
+      }
+    } catch (err) {
+      toast.error("Failed to save brand logos");
+    }
+  };
+
+  const handleSaveGuidelines = async () => {
+    if (!currentTenantId) {
+      toast.error("Please select a tenant");
+      return;
+    }
+    
+    try {
+      const guidelines: Omit<BrandGuideline, 'id'>[] = brandGuidelines.map((g, index) => ({
+        title: g.title,
+        category: g.category,
+        items: g.items,
+        sortOrder: g.sortOrder || index,
+      }));
+      
+      const { error } = await upsertBrandGuidelines(currentTenantId, guidelines, selectedBrandId);
+      if (error) {
+        toast.error(`Failed to save: ${error.message}`);
+        return;
+      }
+      setIsEditingGuidelines(false);
+      toast.success("Brand guidelines updated successfully");
+    } catch (err) {
+      toast.error("Failed to save brand guidelines");
+    }
   };
 
   return (
@@ -332,17 +477,48 @@ export default function BrandHubPage() {
             brandColors={brandColors}
             copiedColor={copiedColor}
             onCopyColor={copyToClipboard}
+            isEditing={isEditingColors}
+            onEdit={() => setIsEditingColors(true)}
+            onSave={handleSaveColors}
+            onCancel={() => setIsEditingColors(false)}
+            onChange={setBrandColors}
           />
         </TabsContent>
 
         {/* Typography Tab */}
         <TabsContent value="typography">
-          <TypographySection typography={typography} />
+          <TypographySection
+            typography={typography}
+            fontStack={fontStack}
+            isEditing={isEditingTypography}
+            onEdit={() => setIsEditingTypography(true)}
+            onSave={handleSaveTypography}
+            onCancel={() => setIsEditingTypography(false)}
+            onChange={setTypography}
+            onFontStackChange={(newFontStack) => {
+              setFontStack(newFontStack);
+              toast.success("Font stack updated");
+            }}
+          />
         </TabsContent>
 
         {/* Logos Tab */}
         <TabsContent value="logos">
-          <LogoSection logoVariations={logoVariations} />
+          <LogoSection
+            logoVariations={logoVariations}
+            brandLogos={brandLogos}
+            brandName={brands.find(b => b.id === selectedBrandId)?.name || "Brand"}
+            logoSpecs={logoSpecs}
+            isEditing={isEditingLogos}
+            onEdit={() => setIsEditingLogos(true)}
+            onSave={handleSaveLogos}
+            onCancel={() => setIsEditingLogos(false)}
+            onChange={setLogoVariations}
+            onSpecsChange={(newSpecs) => {
+              setLogoSpecs(newSpecs);
+              toast.success("Logo specifications updated");
+            }}
+          />
         </TabsContent>
 
         {/* Assets Tab */}
@@ -352,7 +528,14 @@ export default function BrandHubPage() {
 
         {/* Guidelines Tab */}
         <TabsContent value="guidelines">
-          <GuidelinesSection brandGuidelines={brandGuidelines} />
+          <GuidelinesSection
+            brandGuidelines={brandGuidelines}
+            isEditing={isEditingGuidelines}
+            onEdit={() => setIsEditingGuidelines(true)}
+            onSave={handleSaveGuidelines}
+            onCancel={() => setIsEditingGuidelines(false)}
+            onChange={setBrandGuidelines}
+          />
         </TabsContent>
       </TabBar>
     </div>

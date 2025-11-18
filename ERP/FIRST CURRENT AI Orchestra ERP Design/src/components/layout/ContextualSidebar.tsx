@@ -43,6 +43,8 @@ import {
 } from "lucide-react";
 import { Button } from "../ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../ui/tooltip";
+import { useRouter } from "next/navigation";
+import { getRoutePath } from "../../utils/routing";
 
 interface ContextualSidebarProps {
   category: string;

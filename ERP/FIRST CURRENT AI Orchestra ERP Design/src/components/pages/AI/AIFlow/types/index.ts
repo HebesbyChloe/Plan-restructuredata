@@ -3,7 +3,7 @@ export interface AIFlow {
   name: string;
   description: string;
   status: "active" | "paused" | "requested";
-  layer: 1 | 2 | 3;
+  layer: 1 | 2 | 3 | 4; // Updated to include layer 4
   category: string;
   metrics: {
     tasksProcessed: number;
@@ -34,4 +34,4 @@ export type SheetMode = "view" | "request" | "designer";
 
 export type FlowStatus = "active" | "paused" | "requested";
 
-export type FlowLayer = 1 | 2 | 3;
+export type FlowLayer = 1 | 2 | 3 | 4;

@@ -11,6 +11,8 @@ import { AIchatboxdepartmentmain } from "../../AI";
 import { getAIFlows } from "../../../lib/supabase/ai-flows";
 import { supabase } from "../../../lib/supabase/client";
 import { toast } from "sonner";
+import { useRouter } from "next/navigation";
+import { getRoutePath } from "../../../utils/routing";
 
 interface AdministrationMainPageProps {
   onNavigate?: (page: string) => void;
@@ -18,6 +20,7 @@ interface AdministrationMainPageProps {
 
 export function AdministrationMainPage({ onNavigate }: AdministrationMainPageProps) {
   const { currentTenantId } = useTenantContext();
+  const router = useRouter();
   const [currentGuidanceIndex, setCurrentGuidanceIndex] = useState(0);
   
   // AI Guidance messages
@@ -193,8 +196,15 @@ export function AdministrationMainPage({ onNavigate }: AdministrationMainPagePro
   ];
 
   const handleQuickActionClick = (action: typeof quickActions[0]) => {
-    if (action.available && action.page && onNavigate) {
-      onNavigate(action.page);
+    if (action.available && action.page) {
+      // Use router for URL navigation
+      const path = getRoutePath("Administration", action.page);
+      router.push(path);
+      
+      // Also call onNavigate if provided (for state updates)
+      if (onNavigate) {
+        onNavigate(action.page);
+      }
     } else {
       toast.info("Coming soon!");
     }
