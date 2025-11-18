@@ -1,8 +1,30 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter, usePathname } from "next/navigation";
 import { parseRoutePath, getRoutePath } from "./utils/routing";
+
+// Import Next.js hooks with error handling
+let useRouter: any;
+let usePathname: any;
+
+try {
+  const nextNav = require("next/navigation");
+  useRouter = nextNav.useRouter;
+  usePathname = nextNav.usePathname;
+} catch (e) {
+  // Fallback if Next.js hooks are not available
+  useRouter = () => ({ push: (path: string) => { 
+    if (typeof window !== 'undefined') {
+      window.history.pushState({}, '', path);
+    }
+  }});
+  usePathname = () => {
+    if (typeof window !== 'undefined' && window.location) {
+      return window.location.pathname;
+    }
+    return null;
+  };
+}
 import { TopNavBar, ContextualSidebar, Footer, CategoryContent } from "./components/layout";
 import { AIAssistant } from "./components/AI";
 import { HomePage } from "./components/HomePage";
@@ -65,6 +87,15 @@ export default function App() {
   const router = useRouter();
   const pathname = usePathname();
   
+  // Fallback to window.location if pathname is not available
+  const getCurrentPath = () => {
+    if (pathname) return pathname;
+    if (typeof window !== 'undefined' && window.location) {
+      return window.location.pathname;
+    }
+    return null;
+  };
+  
   // Initialize all state first
   // Read default category and team from environment variables (for parallel development)
   // Each worktree can have its own .env.local to set different defaults
@@ -84,32 +115,45 @@ export default function App() {
   
   // ALL HOOKS MUST BE CALLED BEFORE ANY CONDITIONAL RETURNS
   useEffect(() => {
-    setMounted(true);
-    // Only access localStorage on client side after mount
+    // Set mounted immediately on client side
     if (typeof window !== 'undefined') {
+      setMounted(true);
       const hasSeenIntro = localStorage.getItem('amoiq-intro-seen');
       setShowIntro(!hasSeenIntro);
+    } else {
+      // Server side - set mounted after a short delay
+      setTimeout(() => setMounted(true), 0);
     }
   }, []);
 
   // Sync state with URL on mount and when URL changes
-  // Only sync if we're on the root route (not a specific route file)
   useEffect(() => {
-    if (!mounted || !pathname) return;
+    if (!mounted) return;
     
-    // If pathname is not "/", it means we're on a specific route
-    // The route file will handle rendering, but we still want to sync state for sidebar
-    const { category, page } = parseRoutePath(pathname);
+    const currentPath = getCurrentPath();
     
+    if (!currentPath || currentPath === '/') {
+      // Root path - no need to sync
+      return;
+    }
+    
+    // Parse the route path
+    const { category, page } = parseRoutePath(currentPath);
+    
+    // Always update category if it's different
     if (category && category !== currentCategory) {
       setCurrentCategory(category);
     }
     
+    // Update sidebar item based on page
     if (page && page !== selectedSidebarItem) {
       setSelectedSidebarItem(page);
-    } else if (category && !page && selectedSidebarItem !== undefined) {
+    } else if (category && !page) {
       // If category exists but no page, set to undefined (shows overview)
-      setSelectedSidebarItem(undefined);
+      // This handles routes like /marketing (without a page)
+      if (selectedSidebarItem !== undefined) {
+        setSelectedSidebarItem(undefined);
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname, mounted]);
@@ -168,9 +212,17 @@ export default function App() {
     }
     setSelectedSidebarItem(defaultItem);
     
-    // Update URL
-    const path = getRoutePath(category, defaultItem);
-    router.push(path);
+    // Update URL if router is available
+    try {
+      const path = getRoutePath(category, defaultItem);
+      if (router && router.push) {
+        router.push(path);
+      } else if (typeof window !== 'undefined') {
+        window.history.pushState({}, '', path);
+      }
+    } catch (e) {
+      console.warn('Could not update URL:', e);
+    }
   };
 
   const handleSidebarItemClick = (item: string) => {
@@ -183,9 +235,17 @@ export default function App() {
       setIsSidebarCollapsed(false);
     }
     
-    // Update URL
-    const path = getRoutePath(currentCategory, item);
-    router.push(path);
+    // Update URL if router is available
+    try {
+      const path = getRoutePath(currentCategory, item);
+      if (router && router.push) {
+        router.push(path);
+      } else if (typeof window !== 'undefined') {
+        window.history.pushState({}, '', path);
+      }
+    } catch (e) {
+      console.warn('Could not update URL:', e);
+    }
   };
 
   const renderMainContent = () => {
@@ -214,6 +274,10 @@ export default function App() {
     
     if (currentCategory === "Logistics" && !selectedSidebarItem) {
       return <LogisticsMainPage />;
+    }
+    
+    if (selectedSidebarItem === "Reports") {
+      return <ReportsMainPage />;
     }
     
     if (currentCategory === "Reports" && !selectedSidebarItem) {

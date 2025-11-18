@@ -68,26 +68,22 @@ import { FlowTable, LayerExplainer } from "./components";
 // Map database row to frontend AIFlow type
 const mapAIFlowFromDB = (row: AIFlowRow): AIFlow => {
   // Use layer column directly (supports layers 1, 2, 3, 4)
-  const layer: 1 | 2 | 3 | 4 = row.layer || 1;
+  // Get layer from row, default to 1 if not set
+  const layer: 1 | 2 | 3 | 4 = (row.layer !== undefined && row.layer !== null) 
+    ? row.layer as 1 | 2 | 3 | 4 
+    : 1;
 
   // Map status: 'draft' in DB = 'requested' in frontend
   const status: "active" | "paused" | "requested" = 
     row.status === 'draft' ? 'requested' : row.status;
 
-  // Extract category from metadata (preferred) or trigger_config (backward compatibility)
-  const category = row.metadata?.category || row.trigger_config?.category || 'General';
+  // Extract category from metadata
+  const category = row.metadata?.category || 'General';
 
   // Format dates
   const createdDate = row.created_at 
     ? format(new Date(row.created_at), "MMM d, yyyy")
     : "Unknown";
-  
-  const lastRun = row.last_run_at
-    ? format(new Date(row.last_run_at), "MMM d, yyyy 'at' h:mm a")
-    : "Never";
-
-  // Calculate avg time (placeholder - could be enhanced)
-  const avgTime = row.runs_count > 0 ? "~2 min" : "N/A";
 
   return {
     id: row.id.toString(),
@@ -97,13 +93,12 @@ const mapAIFlowFromDB = (row: AIFlowRow): AIFlow => {
     layer,
     category,
     metrics: {
-      tasksProcessed: row.runs_count || 0,
-      successRate: Math.round(row.success_rate || 0),
-      avgTime,
-      quality: Math.round(row.success_rate || 0), // Use success_rate as quality proxy
-      efficiency: Math.round((row.success_rate || 0) * 0.9), // Estimate efficiency
+      tasksProcessed: 0, // Not tracked in database anymore
+      successRate: 0, // Not tracked in database anymore
+      avgTime: "N/A", // Not tracked in database anymore
+      quality: 0, // Not tracked in database anymore
+      efficiency: 0, // Not tracked in database anymore
     },
-    lastRun: row.last_run_at ? lastRun : undefined,
     createdDate,
   };
 };
@@ -1124,8 +1119,8 @@ export function AIFlowPage({ department = "Marketing" }: AIFlowPageProps) {
                       {selectedFlow.status !== "requested" && (
                         <div className="grid grid-cols-2 gap-4 py-2 border-b border-border">
                           <div>
-                            <Label className="text-xs opacity-60">Last Run</Label>
-                            <p className="mt-1 mb-0">{selectedFlow.lastRun}</p>
+                            <Label className="text-xs opacity-60">Created Date</Label>
+                            <p className="mt-1 mb-0">{selectedFlow.createdDate}</p>
                           </div>
                           <div>
                             <Label className="text-xs opacity-60">Average Processing Time</Label>

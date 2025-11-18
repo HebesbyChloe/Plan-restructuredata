@@ -92,7 +92,7 @@ export function FlowTable({ flows, onFlowClick }: FlowTableProps) {
                     : flow.metrics.tasksProcessed.toLocaleString()}
                 </TableCell>
                 <TableCell className="text-right text-xs opacity-60">
-                  {flow.lastRun || flow.createdDate}
+                  {flow.createdDate}
                 </TableCell>
               </TableRow>
             );

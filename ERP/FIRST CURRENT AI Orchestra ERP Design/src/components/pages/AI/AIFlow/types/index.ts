@@ -12,7 +12,6 @@ export interface AIFlow {
     quality: number; // Quality compared to human work (percentage)
     efficiency: number; // Time saved compared to human work (percentage)
   };
-  lastRun?: string;
   createdDate: string;
 }
 

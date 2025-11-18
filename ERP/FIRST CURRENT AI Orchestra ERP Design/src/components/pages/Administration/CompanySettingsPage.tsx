@@ -795,9 +795,9 @@ export function CompanySettingsPage() {
                 
                 return (
                   <div key={key} className="flex items-center gap-4">
-                    <div className="w-32">
+                  <div className="w-32">
                       <p className="text-sm mb-0">{label}</p>
-                    </div>
+                  </div>
                     {!isClosed ? (
                       <>
                         <TimeSelector
@@ -813,8 +813,8 @@ export function CompanySettingsPage() {
                               },
                             },
                           })}
-                        />
-                        <span className="text-muted-foreground">to</span>
+                  />
+                  <span className="text-muted-foreground">to</span>
                         <TimeSelector
                           value={dayData?.close || ""}
                           onChange={(time) => setGeneralMetadata({
@@ -872,10 +872,10 @@ export function CompanySettingsPage() {
                         </Button>
                       </>
                     )}
-                  </div>
+                </div>
                 );
               })}
-            </div>
+                </div>
           </Card>
 
           <Card className="p-6 bg-white dark:bg-card border-[#E5E5E5]">
@@ -897,7 +897,7 @@ export function CompanySettingsPage() {
                 <Plus className="w-4 h-4" />
                 Add Holiday
               </Button>
-            </div>
+                </div>
             {generalMetadata.holiday_hours && generalMetadata.holiday_hours.length > 0 ? (
               <div className="space-y-2">
                 {generalMetadata.holiday_hours.map((holiday, index) => (
@@ -907,7 +907,7 @@ export function CompanySettingsPage() {
                       <p className="text-xs text-muted-foreground mb-0">
                         {new Date(holiday.date).toLocaleDateString()} - {holiday.closed ? "Closed" : `${holiday.open} to ${holiday.close}`}
                       </p>
-                    </div>
+              </div>
                     <div className="flex items-center gap-2">
                       <Button
                         variant="ghost"
@@ -935,7 +935,7 @@ export function CompanySettingsPage() {
                       >
                         <Trash2 className="w-4 h-4" />
                       </Button>
-                    </div>
+            </div>
                   </div>
                 ))}
               </div>
@@ -1164,7 +1164,7 @@ export function CompanySettingsPage() {
               <div className="flex items-center gap-2">
                 <Tag className="w-5 h-5 text-[#4B6BFB]" />
                 <h3 className="mb-0">Brands</h3>
-              </div>
+                  </div>
               <Button 
                 onClick={() => handleOpenBrandDialog()}
                 className="gap-2"
@@ -1172,8 +1172,8 @@ export function CompanySettingsPage() {
               >
                 <Plus className="w-4 h-4" />
                 Add Brand
-              </Button>
-            </div>
+                  </Button>
+                </div>
             
             {brandsLoading ? (
               <div className="flex items-center justify-center p-8">
@@ -1240,7 +1240,7 @@ export function CompanySettingsPage() {
               <div className="flex items-center gap-2">
                 <StoreIcon className="w-5 h-5 text-[#4B6BFB]" />
                 <h3 className="mb-0">Stores</h3>
-              </div>
+                  </div>
               <Button 
                 onClick={() => handleOpenStoreDialog()}
                 className="gap-2"
@@ -1248,8 +1248,8 @@ export function CompanySettingsPage() {
               >
                 <Plus className="w-4 h-4" />
                 Add Store
-              </Button>
-            </div>
+                  </Button>
+                </div>
             
             {storesLoading ? (
               <div className="flex items-center justify-center p-8">
@@ -1258,7 +1258,7 @@ export function CompanySettingsPage() {
             ) : stores.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
                 No stores found. Click "Add Store" to create one.
-              </div>
+            </div>
             ) : (
               <Table>
                 <TableHeader>
@@ -1333,10 +1333,10 @@ export function CompanySettingsPage() {
           {/* Warehouses Section */}
           <Card className="p-6 bg-white dark:bg-card border-[#E5E5E5]">
             <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2">
                 <WarehouseIcon className="w-5 h-5 text-[#4B6BFB]" />
                 <h3 className="mb-0">Warehouses</h3>
-              </div>
+                </div>
               <Button 
                 onClick={() => handleOpenWarehouseDialog()}
                 className="gap-2"
@@ -1345,12 +1345,12 @@ export function CompanySettingsPage() {
                 <Plus className="w-4 h-4" />
                 Add Warehouse
               </Button>
-            </div>
+              </div>
             
             {warehousesLoading ? (
               <div className="flex items-center justify-center p-8">
                 <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-              </div>
+                </div>
             ) : warehouses.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
                 No warehouses found. Click "Add Warehouse" to create one.
@@ -1399,7 +1399,7 @@ export function CompanySettingsPage() {
                           >
                             <Trash2 className="w-4 h-4 text-red-500" />
                           </Button>
-                        </div>
+            </div>
                       </TableCell>
                     </TableRow>
                   ))}

@@ -303,12 +303,12 @@ export function OrderMainPage() {
 
       {/* AI Chatbox */}
       {!agentsLoading && agents.length > 0 && (
-        <AIchatboxdepartmentmain
-          agents={agents}
+      <AIchatboxdepartmentmain
+        agents={agents}
           defaultAgent={agents[0]?.id || "order-manager"}
           agentPrompts={seedDataMap}
-          onSendMessage={handleSendMessage}
-        />
+        onSendMessage={handleSendMessage}
+      />
       )}
     </div>
   );

@@ -49,6 +49,7 @@ const SIDEBAR_TO_SLUG: Record<string, string> = {
   "Asset Library": "asset-library",
   "Inspiration": "inspiration",
   "Resources": "resources",
+  "Reports": "reports",
   
   // CRM
   "Customer": "customer",

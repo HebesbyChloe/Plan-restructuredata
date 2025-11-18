@@ -7,16 +7,9 @@ export interface AIFlowRow {
   description: string | null;
   source: 'internal' | 'external' | 'n8n' | 'gpts' | 'zapier' | 'make';
   status: 'active' | 'paused' | 'draft';
-  layer: 1 | 2 | 3 | 4; // 🆕 NEW: Separate column for easy filtering
-  trigger_type: 'webhook' | 'event' | 'schedule' | 'manual' | null; // Optional, stored in external system
-  trigger_config: Record<string, any> | null; // Kept for backward compatibility
-  metadata: Record<string, any> | null; // 🆕 NEW: Flexible JSONB for category, url, icon, etc.
-  nodes: any[] | null; // Optional, stored in external system
-  edges: any[] | null; // Optional, stored in external system
-  runs_count: number; // Optional, can come from external system
-  success_rate: number; // Optional, can come from external system
-  last_run_at: Date | null; // Optional, can come from external system
-  external_system_id: string | null; // 🆕 NEW: Reference to external AI system
+  layer?: 1 | 2 | 3 | 4; // Layer classification: 1=Internal, 2=External Tools, 3=AI Orchestration, 4=External Systems
+  metadata?: Record<string, any> | null; // Flexible JSONB for category, url, icon, businessPurpose, etc.
+  external_system_id?: string | null; // Reference to external AI system (for layer 4 flows)
   created_at: Date;
   updated_at: Date;
   deleted_at: Date | null;
@@ -55,23 +48,15 @@ export async function createAIFlowRequest(
       description: request.description || null,
       source: 'internal',
       status: 'draft', // New requests start as 'draft' (pending admin approval)
-      layer: layer, // 🆕 NEW: Use layer column directly
-      runs_count: 0,
-      success_rate: 0,
-      last_run_at: null,
     };
+
+    // Include layer (error handling for missing column is done after insert)
+    insertData.layer = layer;
 
     // Only include metadata if it has content
     if (metadata) {
       insertData.metadata = metadata;
     }
-
-    // Only include trigger_config, nodes, edges if they exist (for backward compatibility)
-    // These are optional and stored in external system
-    insertData.trigger_type = null;
-    insertData.trigger_config = null;
-    insertData.nodes = null;
-    insertData.edges = null;
 
     const { data, error } = await supabase
       .from('ai_flows')
@@ -80,6 +65,40 @@ export async function createAIFlowRequest(
       .single();
 
     if (error) {
+      // If error is about missing column (like 'layer' or 'metadata'), try without it
+      if (error.message?.includes('column')) {
+        let retryData = { ...insertData };
+        let retried = false;
+        
+        // Try removing layer if it exists
+        if (retryData.layer !== undefined) {
+          console.warn('Layer column may not exist, retrying without layer');
+          delete retryData.layer;
+          retried = true;
+        }
+        
+        // Try removing metadata if it exists
+        if (retryData.metadata !== undefined) {
+          console.warn('Metadata column may not exist, retrying without metadata');
+          delete retryData.metadata;
+          retried = true;
+        }
+        
+        if (retried) {
+          const { data: retryDataResult, error: retryError } = await supabase
+            .from('ai_flows')
+            .insert(retryData)
+            .select()
+            .single();
+          
+          if (retryError) {
+            console.error('Error creating AI flow request:', retryError);
+            return { data: null, error: new Error(retryError.message) };
+          }
+          return { data: retryDataResult as AIFlowRow, error: null };
+        }
+      }
+      
       console.error('Error creating AI flow request:', error);
       return { data: null, error: new Error(error.message) };
     }
@@ -112,7 +131,7 @@ export async function getAIFlows(
       .eq('tenant_id', tenantId)
       .is('deleted_at', null);
 
-    // Filter by layer if provided
+    // Filter by layer if provided (error handling for missing column is done after query execution)
     if (options?.layer) {
       query = query.eq('layer', options.layer);
     }
@@ -130,6 +149,30 @@ export async function getAIFlows(
     const { data, error } = await query.order('created_at', { ascending: false });
 
     if (error) {
+      // If error is about missing column (like 'layer'), try without layer filter
+      if (error.message?.includes('column') && options?.layer) {
+        console.warn('Layer column may not exist, retrying without layer filter');
+        let retryQuery = supabase
+          .from('ai_flows')
+          .select('*')
+          .eq('tenant_id', tenantId)
+          .is('deleted_at', null);
+        
+        if (options?.source) {
+          retryQuery = retryQuery.eq('source', options.source);
+        }
+        if (options?.status) {
+          retryQuery = retryQuery.eq('status', options.status);
+        }
+        
+        const { data: retryData, error: retryError } = await retryQuery.order('created_at', { ascending: false });
+        if (retryError) {
+          console.error('Error fetching AI flows:', retryError);
+          return { data: null, error: new Error(retryError.message) };
+        }
+        return { data: (retryData || []) as AIFlowRow[], error: null };
+      }
+      
       console.error('Error fetching AI flows:', error);
       return { data: null, error: new Error(error.message) };
     }
@@ -222,8 +265,12 @@ export async function updateAIFlow(
     if (updates.description !== undefined) updateData.description = updates.description;
     if (updates.metadata !== undefined) updateData.metadata = updates.metadata;
     if (updates.status !== undefined) updateData.status = updates.status;
-    if (updates.layer !== undefined) updateData.layer = updates.layer;
     if (updates.source !== undefined) updateData.source = updates.source;
+    
+    // Only include layer if column exists (may not exist if migration hasn't run)
+    if (updates.layer !== undefined) {
+      updateData.layer = updates.layer;
+    }
 
     const { data, error } = await supabase
       .from('ai_flows')
@@ -234,6 +281,42 @@ export async function updateAIFlow(
       .single();
 
     if (error) {
+      // If error is about missing column (like 'layer' or 'metadata'), try without it
+      if (error.message?.includes('column')) {
+        let retryData = { ...updateData };
+        let retried = false;
+        
+        // Try removing layer if it exists
+        if (retryData.layer !== undefined) {
+          console.warn('Layer column may not exist, retrying without layer');
+          delete retryData.layer;
+          retried = true;
+        }
+        
+        // Try removing metadata if it exists
+        if (retryData.metadata !== undefined) {
+          console.warn('Metadata column may not exist, retrying without metadata');
+          delete retryData.metadata;
+          retried = true;
+        }
+        
+        if (retried) {
+          const { data: retryDataResult, error: retryError } = await supabase
+            .from('ai_flows')
+            .update(retryData)
+            .eq('id', flowId)
+            .eq('tenant_id', tenantId)
+            .select()
+            .single();
+          
+          if (retryError) {
+            console.error('Error updating AI flow:', retryError);
+            return { data: null, error: new Error(retryError.message) };
+          }
+          return { data: retryDataResult as AIFlowRow, error: null };
+        }
+      }
+      
       console.error('Error updating AI flow:', error);
       return { data: null, error: new Error(error.message) };
     }

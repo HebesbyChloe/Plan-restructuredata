@@ -2,6 +2,17 @@
 
 import { notFound } from 'next/navigation';
 import { slugToSidebarItem } from '@/utils/routing';
+import { 
+  AdministrationMainPage,
+  UserManagementPage,
+  RolePermissionPage,
+  TenantManagementPage,
+  CompanySettingsPage,
+  AIAgentsPage,
+  AutomationIntegrationPage,
+  AuditLogsPage,
+} from '@/components/pages/Administration';
+import { AIFlowPage } from '@/components/pages/AI';
 import App from '@/App';
 
 export default function AdministrationPage({ params }: { params: { page: string } }) {
@@ -24,5 +35,6 @@ export default function AdministrationPage({ params }: { params: { page: string 
   }
   
   // Render the full App component so sidebar and navigation work correctly
+  // The App component will handle routing based on URL
   return <App />;
 }
