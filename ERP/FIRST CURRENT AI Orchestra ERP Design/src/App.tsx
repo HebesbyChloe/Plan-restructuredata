@@ -186,7 +186,7 @@ export default function App() {
     }
     
     if (currentCategory === "Administration" && !selectedSidebarItem) {
-      return <AdministrationMainPage />;
+      return <AdministrationMainPage onNavigate={handleSidebarItemClick} />;
     }
     
     if (currentCategory === "Fulfilment" && !selectedSidebarItem) {
@@ -407,6 +407,10 @@ export default function App() {
     
     if (selectedSidebarItem === "User Management") {
       return <UserManagementPage />;
+    }
+    
+    if (selectedSidebarItem === "Overview" && currentCategory === "Administration") {
+      return <AdministrationMainPage onNavigate={handleSidebarItemClick} />;
     }
     
     return <CategoryContent category={currentCategory} />;

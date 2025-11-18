@@ -120,11 +120,13 @@ const sidebarMenus = {
     { icon: Calendar, label: "Shift Schedule" },
   ],
   Administration: [
+    { icon: BarChart3, label: "Overview" },
     { icon: Users, label: "User Management" },
     { icon: Shield, label: "Role & Permission" },
     { icon: Building, label: "Tenant Management" },
     { icon: Settings, label: "Company Settings" },
     { icon: Brain, label: "AI Agents" },
+    { icon: Workflow, label: "AI Flow" },
     { icon: Zap, label: "Automation / Integration" },
     { icon: History, label: "Audit Logs" },
   ],
