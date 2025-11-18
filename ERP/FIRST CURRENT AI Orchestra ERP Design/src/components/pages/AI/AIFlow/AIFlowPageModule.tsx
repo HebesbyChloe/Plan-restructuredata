@@ -85,6 +85,10 @@ const mapAIFlowFromDB = (row: AIFlowRow): AIFlow => {
     ? format(new Date(row.created_at), "MMM d, yyyy")
     : "Unknown";
 
+  const updatedDate = row.updated_at
+    ? format(new Date(row.updated_at), "MMM d, yyyy")
+    : undefined;
+
   return {
     id: row.id.toString(),
     name: row.name,
@@ -92,6 +96,7 @@ const mapAIFlowFromDB = (row: AIFlowRow): AIFlow => {
     status,
     layer,
     category,
+    source: row.source,
     metrics: {
       tasksProcessed: 0, // Not tracked in database anymore
       successRate: 0, // Not tracked in database anymore
@@ -100,6 +105,7 @@ const mapAIFlowFromDB = (row: AIFlowRow): AIFlow => {
       efficiency: 0, // Not tracked in database anymore
     },
     createdDate,
+    updatedDate,
   };
 };
 
@@ -151,25 +157,18 @@ export function AIFlowPage({ department = "Marketing" }: AIFlowPageProps) {
       setLoading(true);
       setError(null);
       try {
-        // Load internal flows (layers 1, 2, 3)
-        const { data, error: fetchError } = await getAIFlows(currentTenantId, {
-          source: 'internal'
-        });
+        // Load all flows (no source filter - we'll filter by layer instead)
+        const { data, error: fetchError } = await getAIFlows(currentTenantId);
         if (fetchError) {
           setError(fetchError);
           toast.error(`Failed to load AI flows: ${fetchError.message}`);
         } else {
           const mappedFlows = (data || []).map(mapAIFlowFromDB);
-          setAIFlows(mappedFlows);
-        }
-
-        // Load external tools (layer 4, source = 'external')
-        const { data: externalData, error: externalError } = await getExternalTools(currentTenantId);
-        if (externalError) {
-          console.error('Failed to load external tools:', externalError);
-        } else {
-          const mappedExternal = (externalData || []).map(mapAIFlowFromDB);
-          setExternalTools(mappedExternal);
+          // Separate flows by layer: 1-3 go to aiFlows, layer 4 goes to externalTools
+          const internalFlows = mappedFlows.filter(f => f.layer !== 4);
+          const externalFlows = mappedFlows.filter(f => f.layer === 4);
+          setAIFlows(internalFlows);
+          setExternalTools(externalFlows);
         }
       } catch (err) {
         const error = err instanceof Error ? err : new Error('Unknown error');
@@ -370,33 +369,32 @@ export function AIFlowPage({ department = "Marketing" }: AIFlowPageProps) {
       } else {
         toast.success("Flow updated successfully");
         setIsEditing(false);
-        // Refresh all flows
-        const { data: refreshedData } = await getAIFlows(currentTenantId, { source: 'internal' });
-        if (refreshedData) {
-          const mappedFlows = refreshedData.map(mapAIFlowFromDB);
-          setAIFlows(mappedFlows);
-        }
-        const { data: externalData } = await getExternalTools(currentTenantId);
-        if (externalData) {
-          const mappedExternal = externalData.map(mapAIFlowFromDB);
-          setExternalTools(mappedExternal);
-        }
-        // Reload the selected flow to get updated data
+        // Refresh all flows (no source filter - filter by layer instead)
         const { data: allFlows } = await getAIFlows(currentTenantId);
-        const updatedRow = allFlows?.find(f => f.id === parseInt(selectedFlow.id));
-        if (updatedRow) {
-          const updatedFlow = mapAIFlowFromDB(updatedRow);
-          setSelectedFlow(updatedFlow);
-          // Re-initialize edit fields with updated data
-          setEditedName(updatedFlow.name);
-          setEditedDescription(updatedFlow.description);
-          setEditedCategory(updatedFlow.category);
-          setEditedStatus(updatedFlow.status === "requested" ? "draft" : updatedFlow.status);
-          setEditedLayer(updatedFlow.layer);
-          setEditedSource(updatedRow.source);
-          if (updatedFlow.layer === 4) {
-            setEditedUrl(updatedRow.metadata?.url || "");
-            setEditedIcon(updatedRow.metadata?.icon || "");
+        if (allFlows) {
+          const mappedFlows = allFlows.map(mapAIFlowFromDB);
+          // Separate flows by layer: 1-3 go to aiFlows, layer 4 goes to externalTools
+          const internalFlows = mappedFlows.filter(f => f.layer !== 4);
+          const externalFlows = mappedFlows.filter(f => f.layer === 4);
+          setAIFlows(internalFlows);
+          setExternalTools(externalFlows);
+          
+          // Reload the selected flow to get updated data
+          const updatedRow = allFlows.find(f => f.id === parseInt(selectedFlow.id));
+          if (updatedRow) {
+            const updatedFlow = mapAIFlowFromDB(updatedRow);
+            setSelectedFlow(updatedFlow);
+            // Re-initialize edit fields with updated data
+            setEditedName(updatedFlow.name);
+            setEditedDescription(updatedFlow.description);
+            setEditedCategory(updatedFlow.category);
+            setEditedStatus(updatedFlow.status === "requested" ? "draft" : updatedFlow.status);
+            setEditedLayer(updatedFlow.layer);
+            setEditedSource(updatedRow.source);
+            if (updatedFlow.layer === 4) {
+              setEditedUrl(updatedRow.metadata?.url || "");
+              setEditedIcon(updatedRow.metadata?.icon || "");
+            }
           }
         }
       }
@@ -1108,11 +1106,36 @@ export function AIFlowPage({ department = "Marketing" }: AIFlowPageProps) {
                       <div className="grid grid-cols-2 gap-4 py-2 border-b border-border">
                         <div>
                           <Label className="text-xs opacity-60">Category</Label>
-                          <p className="mt-1 mb-0">{selectedFlow.category}</p>
+                          {isEditing ? (
+                            <Input
+                              value={editedCategory}
+                              onChange={(e) => setEditedCategory(e.target.value)}
+                              className="mt-1"
+                              placeholder="Category"
+                            />
+                          ) : (
+                            <p className="mt-1 mb-0">{selectedFlow.category}</p>
+                          )}
                         </div>
                         <div>
                           <Label className="text-xs opacity-60">Platform</Label>
-                          <p className="mt-1 mb-0">n8n</p>
+                          {isEditing ? (
+                            <Select value={editedSource} onValueChange={(value) => setEditedSource(value as typeof editedSource)}>
+                              <SelectTrigger className="mt-1">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="internal">Internal</SelectItem>
+                                <SelectItem value="external">External</SelectItem>
+                                <SelectItem value="n8n">n8n</SelectItem>
+                                <SelectItem value="gpts">GPTs</SelectItem>
+                                <SelectItem value="zapier">Zapier</SelectItem>
+                                <SelectItem value="make">Make</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <p className="mt-1 mb-0">{selectedFlow.source || 'Internal'}</p>
+                          )}
                         </div>
                       </div>
 
@@ -1136,7 +1159,7 @@ export function AIFlowPage({ department = "Marketing" }: AIFlowPageProps) {
                         </div>
                         <div>
                           <Label className="text-xs opacity-60">Updated Date</Label>
-                          <p className="mt-1 mb-0">Oct 18, 2024</p>
+                          <p className="mt-1 mb-0">{selectedFlow.updatedDate || selectedFlow.createdDate}</p>
                         </div>
                       </div>
                     </div>
